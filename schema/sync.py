@@ -4,6 +4,8 @@ Schema 同步模块 - 从飞书 Bitable 拉取表结构
 用法:
     python -m schema.sync                    # 同步所有配置的表
     python -m schema.sync --tables contracts # 只同步合同表
+    python -m schema.sync --create contracts # 从 schema.yaml 创建表到 Bitable
+    python -m schema.sync --list             # 列出所有可用的表
     python -m schema.sync --watch             # 监听模式（TODO）
 """
 import argparse
@@ -14,6 +16,8 @@ import yaml
 from dotenv import load_dotenv
 from lark_oapi import Client
 from lark_oapi.api.bitable.v1 import (
+    CreateAppTableFieldRequest,
+    CreateAppTableRequest,
     ListAppTableFieldRequest,
     ListAppTableRequest,
 )
@@ -206,6 +210,157 @@ def sync_specific_tables(table_names: list[str]):
     print("\n✓ 同步完成!")
 
 
+# ==================== 创建模式相关函数 ====================
+
+# 飞书 Bitable 字段类型映射
+FIELD_TYPE_MAP = {
+    "text": 1,
+    "number": 2,
+    "single_select": 3,
+    "multi_select": 4,
+    "date": 5,
+    "checkbox": 7,
+    "drop_down": 8,
+    "drop_down_multiple": 9,
+    "user": 10,
+    "department": 11,
+    "email": 15,
+    "phone": 16,
+    "url": 17,
+    "single_link": 18,
+    "formula": 20,
+    "rollup": 21,
+    "auto_number": 1005,
+}
+
+
+def create_table_from_schema(client: Client, app_token: str, table_name: str, table_config: dict) -> str:
+    """
+    根据 schema.yaml 中的定义创建表
+
+    Args:
+        client: 飞书客户端
+        app_token: app_token
+        table_name: 表名（key）
+        table_config: 表配置（从 schema.yaml 获取）
+
+    Returns:
+        新创建的 table_id
+    """
+    display_name = table_config.get("name", table_name)
+    fields_config = table_config.get("fields", [])
+
+    # 检查表是否已存在
+    existing_tables = list_tables(client, app_token)
+    for t in existing_tables:
+        if t["name"] == display_name:
+            print(f"⚠ 表 {display_name} 已存在 (ID: {t['table_id']})")
+            return t["table_id"]
+
+    # 创建表
+    print(f"\n>>> 创建表: {display_name}")
+    request = CreateAppTableRequest.builder() \
+        .app_token(app_token) \
+        .request_body({"name": display_name}) \
+        .build()
+
+    response = client.bitable.v1.app_table.create(request)
+    if not response.success():
+        raise RuntimeError(f"创建表失败: {response.msg}")
+
+    table_id = response.data.table_id
+    print(f"    ✓ 表创建成功 (ID: {table_id})")
+
+    # 创建字段
+    if fields_config:
+        print(f"    创建 {len(fields_config)} 个字段...")
+        for field in fields_config:
+            field_name = field.get("name", "")
+            field_type = field.get("type", 1)
+
+            # 如果 type 是数字，保持不变；如果是字符串，转换
+            if isinstance(field_type, str):
+                field_type = FIELD_TYPE_MAP.get(field_type.lower(), 1)
+
+            request = CreateAppTableFieldRequest.builder() \
+                .app_token(app_token) \
+                .table_id(table_id) \
+                .request_body({
+                    "field_name": field_name,
+                    "type": field_type,
+                }) \
+                .build()
+
+            response = client.bitable.v1.app_table_field.create(request)
+            if response.success():
+                print(f"        ✓ {field_name} (type={field_type})")
+            else:
+                print(f"        ✗ {field_name} 失败: {response.msg}")
+
+    return table_id
+
+
+def create_tables_from_schema(table_names: list[str] | None = None):
+    """从 schema.yaml 创建表到 Bitable"""
+    client = get_client()
+    app_token = os.environ.get("FEISHU_BITABLE_APP_TOKEN")
+    if not app_token:
+        raise ValueError("请配置 FEISHU_BITABLE_APP_TOKEN")
+
+    schema = load_existing_schema()
+    if not schema:
+        print("✗ schema.yaml 为空或不存在")
+        return
+
+    print("=" * 50)
+    print("从 schema.yaml 创建表到 Bitable")
+    print("=" * 50)
+
+    # 确定要创建的表
+    if table_names:
+        tables_to_create = {name: schema.get(name) for name in table_names if schema.get(name)}
+    else:
+        tables_to_create = schema
+
+    for table_name, table_config in tables_to_create.items():
+        if not table_config:
+            print(f"⚠ 跳过 {table_name}: 未在 schema.yaml 中找到定义")
+            continue
+        table_id = create_table_from_schema(client, app_token, table_name, table_config)
+        # 将 table_id 保存到环境变量文件中
+        _save_table_id_to_env(table_name, table_id)
+
+
+def _save_table_id_to_env(table_name: str, table_id: str):
+    """保存 table_id 到 .env 文件"""
+    env_file = PROJECT_ROOT / ".env"
+    env_key = f"FEISHU_BITABLE_{table_name.upper()}_TABLE_ID"
+
+    # 读取现有内容
+    existing_lines = []
+    if env_file.exists():
+        with open(env_file, "r", encoding="utf-8") as f:
+            existing_lines = f.readlines()
+
+    # 检查是否已存在
+    key_exists = False
+    new_lines = []
+    for line in existing_lines:
+        if line.strip().startswith(env_key + "="):
+            new_lines.append(f"{env_key}={table_id}\n")
+            key_exists = True
+        else:
+            new_lines.append(line)
+
+    if not key_exists:
+        new_lines.append(f"{env_key}={table_id}\n")
+
+    with open(env_file, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+
+    print(f"    ✓ 已保存 {env_key}={table_id} 到 .env")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Schema 同步工具")
     parser.add_argument(
@@ -218,6 +373,11 @@ def main():
         "--list",
         action="store_true",
         help="列出所有可用的表",
+    )
+    parser.add_argument(
+        "--create",
+        nargs="*",
+        help="从 schema.yaml 创建表到 Bitable（可选指定表名）",
     )
     parser.add_argument(
         "--watch",
@@ -237,6 +397,12 @@ def main():
         print("\n可用表:")
         for t in tables:
             print(f"  - {t['name']}: {t['table_id']}")
+        return
+
+    if args.create is not None:
+        # --create 后面可以跟表名列表，也可以不带
+        table_names = args.create if args.create else None
+        create_tables_from_schema(table_names)
         return
 
     if args.watch:
