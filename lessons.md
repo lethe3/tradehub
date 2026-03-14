@@ -37,6 +37,18 @@
 
 ---
 
+### _commit 流程教训_
+
+**问题**：任务完成后直接 commit，没有先让用户确认需要修改的文件
+
+**正确流程**：
+1. 列出代码变更和需要用户确认的 Obsidian 文件
+2. 明确标注哪些是你负责修改的（如 status.md、log.md 的草稿部分）
+3. 等你说"可以了"后再 commit
+4. 禁止在用户确认前 commit
+
+---
+
 ### 参考
 
 - SKILL 文档：`references/openclaw-lark/skills/feishu-bitable/references/record-values.md`
