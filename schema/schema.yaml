@@ -1,0 +1,91 @@
+contracts:
+  fields:
+  - field_id: fld16duzs9
+    name: 合同号
+    type: 1005
+  - field_id: fldG5kdgoO
+    name: 合同编号
+    type: 1
+  - field_id: fldptoKM3T
+    name: 我方主体
+    options:
+    - color: 0
+      id: optADKBLH2
+      name: 我司A
+    - color: 1
+      id: opt83mV0vv
+      name: 我司B
+    - color: 2
+      id: opt177012076
+      name: 公司A
+    type: 3
+  - field_id: fldgjXaSaD
+    name: 合同方向
+    options:
+    - color: 0
+      id: opt2Almv7t
+      name: 采购
+    - color: 1
+      id: optvuL4GPw
+      name: 销售
+    type: 3
+  - field_id: fldiBMP8vP
+    name: 交易对手
+    options:
+    - color: 0
+      id: opth8CpkKG
+      name: 客户A
+    - color: 1
+      id: opt1050603482
+      name: 测试供应商
+    - color: 2
+      id: opt183407045
+      name: 测试供应商-已更新
+    type: 3
+  - field_id: fld2WRdug6
+    name: 签订日期
+    type: 5
+  name: 合同表
+  table_id: tbl88afziZfqONru
+stock_inflows:
+  fields:
+  - field_id: fldzewxjys
+    name: 多行文本
+    type: 1
+  - field_id: flddSIKuqr
+    name: test
+    type: 1
+  name: 入库流转
+  table_id: tblc63F5Mdph2PWb
+weigh_tickets:
+  fields:
+  - field_id: fldA2AWFsb
+    name: 磅单号
+    type: 1005
+  - field_id: fldldCTOag
+    name: 磅单编号
+    type: 1
+  - field_id: fldnFFvgkU
+    name: 关联合同
+    type: 18
+  - field_id: fldyMaJviX
+    name: 货物品名
+    options:
+    - color: 0
+      id: optp8ggGyl
+      name: 黄铜块
+    - color: 1
+      id: optizSuFYJ
+      name: 铜精矿
+    - color: 2
+      id: optDNklJvr
+      name: 废铜
+    type: 3
+  - field_id: fldfmxzxPg
+    name: 净重(吨)
+    type: 2
+  - field_id: fldK8hNOin
+    name: 过磅日期
+    type: 5
+  name: 磅单
+  table_id: tblj5CAZp9bXwB0u
