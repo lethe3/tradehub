@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+
+# 环境变量
+.env
+
+# 本地引用
+references/
