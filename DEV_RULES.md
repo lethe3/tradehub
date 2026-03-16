@@ -59,20 +59,19 @@ python scripts/inspect_sdk.py im.v1
 ```
 tests/
 ├── fixtures/
-│   ├── webhook_payloads/   ← webhook JSON（脱敏）
+│   ├── event_payloads/    ← 飞书 WebSocket 事件 JSON（脱敏）
 │   ├── sample_images/      ← 测试用图片
 │   └── mock_responses/     ← API 返回值 mock
 ├── test_api_*.py           ← 独立 API 验证脚本
 └── test_integration.py     ← 端到端集成测试
 ```
 
-每次调试通过新场景后，将真实请求/响应脱敏保存为 fixture。
-
 ### 常见替代方案
 
 | 依赖人的做法 | 应该的做法 |
 |-------------|-----------|
-| 让 Zhang 手动触发来验证 | 用 fixture + 脚本自动触发 |
+| 让 Zhang 在飞书发消息触发 Bot | 独立脚本直接调用 handler 函数，输入用 `tests/fixtures/event_payloads/` 中的 JSON |
+| 让 Zhang 发图片测试 OCR | 独立脚本直接调用图片下载 + OCR，输入用 `tests/fixtures/sample_images/` |
 | 让 Zhang 看系统确认数据 | 脚本写入后立即读取，assert 匹配 |
 | 让 Zhang 确认 UI 渲染 | 脚本验证发送成功，渲染留给里程碑验收 |
 
