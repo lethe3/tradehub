@@ -1,0 +1,540 @@
+weighing_slip_files:
+
+  - file: "图片1"
+    document_type: "称重计量单"
+    slips:
+      - raw:
+          slip_no: "A2025040300001"
+          vehicle_no: "豫HM2729"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "33340"
+          tare_weight_raw: "14540"
+          net_weight_raw: "18800"
+          gross_weight_time_raw: "2025-04-03 11:52:22"
+          tare_weight_time_raw: "2025-04-03 10:50:51"
+          operator: "Admin"
+          shipper: ~
+          receiver: ~
+        bitable:
+          slip_seq: "A20250403000001"
+          net_weight_t: 18.800
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1743644542000
+        needs_review: false
+        review_reason: ~
+
+  - file: "p2.jpg"
+    document_type: "成品出库单"
+    company: "济源市金湘源环保科技有限公司"
+    slips:
+      - raw:
+          slip_no: "0000002"
+          date_raw: "25.3.22"
+          vehicle_no: "豫HJ2P43"
+          cargo_name_raw: "氧化矿"
+          gross_weight_raw: "50.96"
+          tare_weight_raw: "17.79"
+          net_weight_raw: "33.17"
+          gross_weight_time_raw: ~
+          tare_weight_time_raw: ~
+          contact: "15839108970"
+          sampler: "马"
+        bitable:
+          slip_seq: "0000002"
+          net_weight_t: 33.170
+          cargo_name: "氧化矿"
+          weigh_date_ts: 1742572800000
+        needs_review: true
+        review_reason: "提示：车牌号予改为豫，应为手写管理简化豫为予"
+
+  - file: "p3.jpg"
+    document_type: "全电子汽车衡磅码单"
+    slips:
+      - raw:
+          seq_no: "5741"
+          date_raw: "2025-02-14"
+          weigh_time_raw: "14:40"
+          vehicle_no: "2841"
+          cargo_name_raw: "18包半"
+          gross_weight_raw: "49130"
+          tare_weight_raw: "15700"
+          net_weight_raw: "33430（手写备注 -53.5）"
+          gross_weight_time_raw: ~
+          tare_weight_time_raw: ~
+          fee_raw: "49.00 元"
+          customer_name: "林俊杰"
+          operator: "管理员"
+        bitable:
+          slip_seq: "5741"
+          net_weight_t: 33.377
+          cargo_name: ~
+          weigh_date_ts: 1739508000000
+        needs_review: true
+        review_reason: "净重有手写扣减（-53.5kg）；货物品名'18包半'无法匹配标准选项"
+
+  - file: "p4.png"
+    document_type: "过磅单"
+    company: "红柳峡选矿厂"
+    slips:
+      - raw:
+          slip_no: "00007915"
+          date_raw: "2025.10.31"
+          time_raw: ~
+          vehicle_no: "豫HM5007"
+          driver: "张卫东 1868918631"
+          cargo_name_raw: "铅粉"
+          gross_weight_raw: "52120"
+          tare_weight_raw: "15220"
+          deduction_rate_raw: ~
+          net_weight_raw: "36900"
+          operator_signature: ~
+          warehouse_signature: ~
+        bitable:
+          slip_seq: "00007915"
+          net_weight_t: 36.900
+          cargo_name: "铅粉"
+          weigh_date_ts: ~
+        needs_review: true
+        review_reason: "虽然单位注明是 Kg 实际单位应该是 t，需人工确认；车号识别可能有误"
+
+  - file: "图片5"
+    document_type: "称重计量单"
+    slips:
+      - raw:
+          slip_no: ~
+          vehicle_no: "豫HP0651"
+          cargo_name_raw: "铜粉"
+          shipper: "淮北市东鑫矿业有限公司"
+          receiver: "安徽圣优达商贸有限公司"
+          gross_weight_raw: "48780"
+          tare_weight_raw: "15560"
+          net_weight_raw: "33220"
+          gross_weight_time_raw: "2025-03-04 16:14:53"
+          tare_weight_time_raw: "2025-03-04 15:14:41"
+          operator: "单位管理员"
+        bitable:
+          slip_seq: ~
+          net_weight_t: 33.220
+          cargo_name: "铜粉"
+          weigh_date_ts: 1741097693000
+        needs_review: false
+        review_reason: ~
+
+  - file: "p6.jpg"
+    document_type: "称重过磅单"
+    slips:
+      - raw:
+          seq_no: "000997"
+          datetime_raw: "2025-03-02 17:19:54"
+          unit_raw: "公斤"
+          vehicle_no: "豫HV6978"
+          cargo_name_raw: ~
+          gross_weight_raw: "56000"
+          tare_weight_raw: "14810"
+          net_weight_raw: "41190"
+          actual_net_weight_raw: "41190"
+          box_weight_raw: "0"
+          operator: "超级权限"
+        bitable:
+          slip_seq: "000997"
+          net_weight_t: 41.190
+          cargo_name: ~
+          weigh_date_ts: 1740906594000
+        needs_review: true
+        review_reason: "货物名称为空，无法填写品名"
+
+  - file: "p7.JPEG"
+    document_type: "称重单"
+    slips:
+      - raw:
+          seq_no: "0052"
+          datetime_raw: "2024-12-23 10:52:47"
+          vehicle_no: "05786"
+          cargo_name_raw: ~
+          gross_weight_raw: "50.225"
+          tare_weight_raw: "14.845"
+          net_weight_raw: "35.380"
+        bitable:
+          slip_seq: "0052"
+          net_weight_t: 35.380
+          cargo_name: ~
+          weigh_date_ts: 1734918767000
+        needs_review: true
+        review_reason: "无货物名称字段，无法填写品名。部分磅单支持数字，需人工填入完整车牌号"
+
+  - file: "p8.jpg"
+    document_type: "电子衡重记录"
+    company: "连云港中外运物流有限公司"
+    report_no: "TY20250416-2"
+    bill_of_lading: "OOLU2750216110"
+    shipper: "腾阳"
+    operator: "王小凤"
+    slips:
+      - raw:
+          vehicle_no: "豫HS5899"
+          cargo_name_raw: "铜精矿"
+          weigh_time_raw: "2025/4/16 15:04"
+          gross_weight_raw: "49720"
+          tare_weight_raw: "13980"
+          net_weight_raw: "35740"
+        bitable:
+          slip_seq: "TY20250416-2"
+          net_weight_t: 35.740
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1744787040000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          vehicle_no: "豫HM8559"
+          cargo_name_raw: "铜精矿"
+          weigh_time_raw: "2025/4/16 15:14"
+          gross_weight_raw: "50060"
+          tare_weight_raw: "13900"
+          net_weight_raw: "36160"
+        bitable:
+          slip_seq: "TY20250416-2"
+          net_weight_t: 36.160
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1744787640000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          vehicle_no: "豫HQ0008"
+          cargo_name_raw: "铜精矿"
+          weigh_time_raw: "2025/4/16 15:21"
+          gross_weight_raw: "49840"
+          tare_weight_raw: "14000"
+          net_weight_raw: "35840"
+        bitable:
+          slip_seq: "TY20250416-2"
+          net_weight_t: 35.840
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1744788060000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          vehicle_no: "沪G03122D"
+          cargo_name_raw: "铜精矿"
+          weigh_time_raw: "2025/4/16 16:42"
+          gross_weight_raw: "26240"
+          tare_weight_raw: "23480"
+          net_weight_raw: "2760"
+        bitable:
+          slip_seq: "TY20250416-2"
+          net_weight_t: 2.760
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1744793520000
+        needs_review: true
+        review_reason: "净重仅2.76吨，远低于其他车次，疑似空箱或异常，需人工确认"
+
+  - file: "p9.jpg"
+    document_type: "采购过磅单"
+    company: "河南豫光金铅股份有限公司"
+    slips:
+      - raw:
+          slip_no: "BCG314020250428394"
+          datetime_raw: "2025-04-28 15:28:16"
+          unit_raw: "吨"
+          supplier: "河南国合商贸有限公司"
+          receiver_unit: "玉川厂区"
+          production_plant: "玉川冶炼厂"
+          warehouse: "股份玉川原料工段"
+          vehicle_no: "豫U93526"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: 51.040
+          tare_weight_raw: 13.920
+          moisture_impurity_raw: 0.010
+          net_weight_raw: 37.110 
+          copy_type: "会计联"
+        bitable:
+          slip_seq: "BCG314020250428394"
+          net_weight_t: 37.110
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1745825296000
+        needs_review: false
+        review_reason: ~
+
+  - file: "p10.png"
+    document_type: "采购过磅单"
+    company: "河南豫光金铅股份有限公司"
+    slips:
+      - raw:
+          slip_no: "BCG314020251102103"
+          datetime_raw: "2025-11-02 11:23:05"
+          unit_raw: "吨"
+          supplier: "济源市汇铖矿产品有限公司"
+          receiver_unit: "柿槟厂区"
+          production_plant: "原料厂"
+          warehouse: "股份原料厂柿槟库"
+          vehicle_no: "豫HM5007"
+          cargo_name_raw: "铅粉矿"
+          gross_weight_raw: "51.580"
+          tare_weight_raw: "14.920"
+          moisture_impurity_raw: "0.020"
+          net_weight_raw: "36.640"
+          copy_type: "会计联"
+        bitable:
+          slip_seq: "BCG314020251102103"
+          net_weight_t: 36.640
+          cargo_name: "铅粉矿"
+          weigh_date_ts: 1762046585000
+        needs_review: false
+        review_reason: ~
+
+  - file: "p11.png"
+    document_type: "过磅单"
+    company: "红柳峡选矿厂"
+    slips:
+      - raw:
+          slip_no: "00007137"
+          date_raw: "2025.10.30"
+          time_raw: "10:45"
+          vehicle_no: "豫HP5779"
+          driver: "13462426661"
+          cargo_name_raw: ~
+          gross_weight_raw: "54.860"
+          tare_weight_raw: "15.520"
+          deduction_rate_raw: ~
+          net_weight_raw: "39.34"
+          operator_signature: "任赞峰"
+          warehouse_signature: ~
+        bitable:
+          slip_seq: "00007137"
+          net_weight_t: 39.340
+          cargo_name: ~
+          weigh_date_ts: 1761778700000
+        needs_review: true
+        review_reason: "货物名称栏空白，无法填写品名。单位标注为 kg 填写数字单位应是 t"
+      - raw:
+          slip_no: "00007138"
+          date_raw: "2025.10.30"
+          time_raw: "10:45"
+          vehicle_no: "豫HH0567"
+          driver: "凤明军 15838980326"
+          cargo_name_raw: ~
+          gross_weight_raw: "52.860"
+          tare_weight_raw: "15.420"
+          deduction_rate_raw: ~
+          net_weight_raw: "37.44"
+          operator_signature: ~
+          warehouse_signature: ~
+        bitable:
+          slip_seq: "00007138"
+          net_weight_t: 37.440
+          cargo_name: ~
+          weigh_date_ts: 1761778700000
+        needs_review: true
+        review_reason: "货物名称栏空白，无法填写品名。单位标注为 kg 填写数字单位应是 t"
+
+  - file: "p12.JPG"
+    document_type: "过磅单"
+    company: "港联捷物流镇海仓库"
+    slips:
+      - raw:
+          slip_no: "A202602270049"
+          unit_raw: "kg"
+          print_time_raw: "2026/2/27 17:50:54"
+          vehicle_no: "赣FB3706"
+          cargo_name_raw: "国合黄铜锭"
+          box_no_1: "3030230"
+          box_no_2: "1314216"
+          gross_weight_raw: "51880"
+          tare_weight_raw: "17370"
+          net_weight_raw: "34510"
+          gross_weight_time_raw: "2026/02/27 17:50:53"
+          tare_weight_time_raw: "2026/02/27 16:32:36"
+        bitable:
+          slip_seq: "A202602270049"
+          net_weight_t: 34.510
+          cargo_name: "黄铜锭"
+          weigh_date_ts: 1772293853000
+        needs_review: true
+        review_reason: "'国合黄铜锭'中'国合'疑为供应商前缀，品名已简化为'黄铜锭'，需确认是否匹配Bitable选项"
+
+  - file: "p13.pdf"
+    document_type: "过磅单"
+    slips:
+      - raw:
+          slip_no: "CN000114"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/22 15:53:07"
+          vehicle_no: "川W84700"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "68340"
+          tare_weight_raw: "16200"
+          deduction_raw: "0"
+          net_weight_raw: "52140"
+          gross_weight_time_raw: "2024/12/22 15:52:42"
+          tare_weight_time_raw: "2024/12/22 14:04:33"
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000114"
+          net_weight_t: 52.140
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734853962000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          slip_no: "CN000115"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/22 16:24:36"
+          vehicle_no: "川WB3450"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "59220"
+          tare_weight_raw: "15240"
+          deduction_raw: "0"
+          net_weight_raw: "43980"
+          gross_weight_time_raw: "2024/12/22 16:24:23"
+          tare_weight_time_raw: "2024/12/22 14:14:12"
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000115"
+          net_weight_t: 43.980
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734856463000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          slip_no: "CN000117"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/22 17:06:06"
+          vehicle_no: "川W66737"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "74960"
+          tare_weight_raw: "18080"
+          deduction_raw: "0"
+          net_weight_raw: "56880"
+          gross_weight_time_raw: "2024/12/22 17:06:00"
+          tare_weight_time_raw: "2024/12/22 14:32:47"
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000117"
+          net_weight_t: 56.880
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734858360000
+        needs_review: false
+        review_reason: ~
+
+  - file: "p14.pdf"
+    document_type: "过磅单"
+    slips:
+      - raw:
+          slip_no: "CN000108"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/20 14:59:05"
+          vehicle_no: "川W84700"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "72420"
+          tare_weight_raw: "16200"
+          deduction_raw: "0"
+          net_weight_raw: "56220"
+          gross_weight_time_raw: "2024/12/20 14:59:08"
+          tare_weight_time_raw: ~
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000108"
+          net_weight_t: 56.220
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734681548000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          slip_no: "CN000107"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/20 15:08:37"
+          vehicle_no: "川W79923"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "58180"
+          tare_weight_raw: "14120"
+          deduction_raw: "0"
+          net_weight_raw: "44060"
+          gross_weight_time_raw: "2024/12/20 15:07:29"
+          tare_weight_time_raw: "2024/12/20 14:27:36"
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000107"
+          net_weight_t: 44.060
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734682049000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          slip_no: "CN000110"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/20 15:25:08"
+          vehicle_no: "川W86374"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "66960"
+          tare_weight_raw: "14200"
+          deduction_raw: "0"
+          net_weight_raw: "52760"
+          gross_weight_time_raw: "2024/12/20 15:24:46"
+          tare_weight_time_raw: ~
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000110"
+          net_weight_t: 52.760
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734683086000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          slip_no: "CN000109"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/20 16:13:36"
+          vehicle_no: "川W66737"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "78300"
+          tare_weight_raw: "18280"
+          deduction_raw: "0"
+          net_weight_raw: "60020"
+          gross_weight_time_raw: "2024/12/20 16:13:17"
+          tare_weight_time_raw: "2024/12/20 15:21:18"
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000109"
+          net_weight_t: 60.020
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734685997000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          slip_no: "CN000112"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/20 16:35:02"
+          vehicle_no: "川W71057"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "57020"
+          tare_weight_raw: "13620"
+          deduction_raw: "0"
+          net_weight_raw: "43400"
+          gross_weight_time_raw: "2024/12/20 16:34:45"
+          tare_weight_time_raw: "2024/12/20 16:17:54"
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000112"
+          net_weight_t: 43.400
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734687285000
+        needs_review: false
+        review_reason: ~
+      - raw:
+          slip_no: "CN000113"
+          unit_raw: "KG"
+          datetime_raw: "2024/12/20 16:57:36"
+          vehicle_no: "川W86609"
+          cargo_name_raw: "铜精矿"
+          gross_weight_raw: "62260"
+          tare_weight_raw: "16800"
+          deduction_raw: "0"
+          net_weight_raw: "45460"
+          gross_weight_time_raw: "2024/12/20 16:57:30"
+          tare_weight_time_raw: "2024/12/20 16:28:50"
+          operator: "陈兵"
+        bitable:
+          slip_seq: "CN000113"
+          net_weight_t: 45.460
+          cargo_name: "铜精矿"
+          weigh_date_ts: 1734688650000
+        needs_review: false
+        review_reason: ~
