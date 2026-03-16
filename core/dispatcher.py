@@ -4,10 +4,14 @@
 核心规则：core/ 不依赖 feishu/ 或 ai/
 """
 
+import logging
+import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Any, Optional
-import re
+
+logger = logging.getLogger(__name__)
 
 
 class Intent(Enum):
@@ -25,18 +29,18 @@ class HandlerResult:
     data: Optional[dict] = None
 
 
-class Handler:
+class Handler(ABC):
     """Handler 基类"""
 
     intent: Intent
 
+    @abstractmethod
     def can_handle(self, message: Any) -> bool:
         """判断是否能处理这条消息"""
-        raise NotImplementedError
 
+    @abstractmethod
     def handle(self, message: Any) -> HandlerResult:
         """处理消息"""
-        raise NotImplementedError
 
 
 # Handler 注册表
@@ -103,6 +107,7 @@ class Dispatcher:
         try:
             return handler.handle(message)
         except Exception as e:
+            logger.exception(f"Handler 执行失败: {e}")
             return HandlerResult(
                 success=False,
                 message=f"处理失败: {str(e)}"

@@ -10,11 +10,41 @@
 - BitableApp: 应用级别操作（创建表）
 - BitableTable: 表级别操作（CRUD）
 """
+import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
+from enum import IntEnum
 from pathlib import Path
 from typing import Any, List, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+class BitableError(Exception):
+    """Bitable 操作异常"""
+    pass
+
+
+class FieldType(IntEnum):
+    """飞书 Bitable 字段类型枚举"""
+    TEXT = 1
+    NUMBER = 2
+    SINGLE_SELECT = 3
+    MULTI_SELECT = 4
+    DATE = 5
+    CHECKBOX = 7
+    DROP_DOWN = 8
+    DROP_DOWN_MULTIPLE = 9
+    USER = 10
+    DEPARTMENT = 11
+    EMAIL = 15
+    PHONE = 16
+    URL = 17
+    SINGLE_LINK = 18
+    FORMULA = 20
+    ROLLUP = 21
+    AUTO_NUMBER = 1005
 
 from dotenv import load_dotenv
 from lark_oapi import Client
@@ -59,28 +89,26 @@ def get_app_token() -> str:
     return app_token
 
 
-# 飞书 Bitable 字段类型映射
+# 飞书 Bitable 字段类型映射（兼容字符串到枚举的转换）
 FIELD_TYPE_MAP = {
-    "text": 1,
-    "number": 2,
-    "single_select": 3,
-    "multi_select": 4,
-    "date": 5,
-    "checkbox": 7,
-    "drop_down": 8,
-    "drop_down_multiple": 9,
-    "user": 10,
-    "department": 11,
-    "email": 15,
-    "phone": 16,
-    "url": 17,
-    "single_link": 18,
-    "formula": 20,
-    "rollup": 21,
-    "auto_number": 1005,
+    "text": FieldType.TEXT,
+    "number": FieldType.NUMBER,
+    "single_select": FieldType.SINGLE_SELECT,
+    "multi_select": FieldType.MULTI_SELECT,
+    "date": FieldType.DATE,
+    "checkbox": FieldType.CHECKBOX,
+    "drop_down": FieldType.DROP_DOWN,
+    "drop_down_multiple": FieldType.DROP_DOWN_MULTIPLE,
+    "user": FieldType.USER,
+    "department": FieldType.DEPARTMENT,
+    "email": FieldType.EMAIL,
+    "phone": FieldType.PHONE,
+    "url": FieldType.URL,
+    "single_link": FieldType.SINGLE_LINK,
+    "formula": FieldType.FORMULA,
+    "rollup": FieldType.ROLLUP,
+    "auto_number": FieldType.AUTO_NUMBER,
 }
-
-REVERSE_TYPE_MAP = {v: k for k, v in FIELD_TYPE_MAP.items()}
 
 
 @dataclass
@@ -113,7 +141,7 @@ class BitableApp:
                 "table_id": t.table_id,
                 "name": t.name,
             }
-            for t in response.data.items
+            for t in (response.data.items or [])
         ]
 
     def get_table(self, table_name: str) -> dict | None:
@@ -147,7 +175,7 @@ class BitableApp:
             raise RuntimeError(f"创建表失败: {response.msg}")
 
         table_id = response.data.table_id
-        print(f"✓ 创建表成功: {table_name} ({table_id})")
+        logger.info(f"创建表成功: {table_name} ({table_id})")
 
         # 如果提供了字段配置，批量添加字段
         if fields:
@@ -204,6 +232,9 @@ class BitableTable:
 
         self.table_name = table_name or self._get_table_name_from_api()
 
+        # 缓存 schema，避免每次调用都遍历
+        self._cached_schema = self._get_table_schema()
+
     def _get_table_name_from_api(self) -> str:
         """从 API 获取表名"""
         tables = BitableApp(client=self.client, app_token=self.app_token).list_tables()
@@ -213,11 +244,8 @@ class BitableTable:
         return self.table_id
 
     def _get_table_schema(self):
-        """获取表对应的 schema 定义"""
-        for name, table in [(n, self.schema.get_table(n)) for n in self.schema.table_names()]:
-            if table and table.table_id == self.table_id:
-                return table
-        return None
+        """获取表对应的 schema 定义（从缓存）"""
+        return self._cached_schema
 
     # ==================== 字段操作 ====================
 
@@ -233,7 +261,7 @@ class BitableTable:
             raise RuntimeError(f"获取字段列表失败: {response.msg}")
 
         fields = []
-        for f in response.data.items:
+        for f in (response.data.items or []):
             field_info = {
                 "field_id": f.field_id,
                 "type": f.type,
@@ -376,26 +404,25 @@ class BitableTable:
             return value
 
         field_type = field.type
-        field_name = field.name
 
-        # 日期字段 (type=5) - 毫秒时间戳转换为日期字符串
-        if field_type == 5 and value:
+        # 日期字段 (FieldType.DATE) - 毫秒时间戳转换为日期字符串
+        if field_type == FieldType.DATE and value:
             if isinstance(value, (int, float)):
                 try:
-                    dt = datetime.fromtimestamp(value / 1000)
+                    dt = datetime.fromtimestamp(value / 1000, tz=timezone.utc)
                     return dt.strftime("%Y-%m-%d")
                 except (ValueError, OSError):
                     return str(value)
 
-        # 单选字段 (type=3) - 选项 ID 转换为选项名称
-        if field_type == 3 and value:
+        # 单选字段 (FieldType.SINGLE_SELECT) - 选项 ID 转换为选项名称
+        if field_type == FieldType.SINGLE_SELECT and value:
             if isinstance(value, str):
                 for opt in field.options:
                     if opt.id == value:
                         return opt.name
 
-        # 多选字段 (type=4) - 选项 ID 列表转换为选项名称列表
-        if field_type == 4 and value:
+        # 多选字段 (FieldType.MULTI_SELECT) - 选项 ID 列表转换为选项名称列表
+        if field_type == FieldType.MULTI_SELECT and value:
             if isinstance(value, list):
                 id_to_name = {opt.id: opt.name for opt in field.options}
                 return [id_to_name.get(v, v) for v in value]
@@ -431,8 +458,8 @@ class BitableTable:
         if response.success():
             return response.data.record.record_id
         else:
-            print(f"✗ 创建失败: {response.msg}")
-            return None
+            logger.error(f"创建记录失败: {response.msg}")
+            raise BitableError(f"创建记录失败: {response.msg}")
 
     def get(self, record_id: str) -> dict | None:
         """
@@ -452,8 +479,8 @@ class BitableTable:
 
         response = self.client.bitable.v1.app_table_record.get(request)
         if not response.success():
-            print(f"✗ 获取失败: {response.msg}")
-            return None
+            logger.error(f"获取记录失败: {response.msg}")
+            raise BitableError(f"获取记录失败: {response.msg}")
 
         # 转换字段 ID 为字段名，并转换值格式
         result = {}
@@ -501,8 +528,8 @@ class BitableTable:
 
         response = self.client.bitable.v1.app_table_record.list(request)
         if not response.success():
-            print(f"✗ 列表获取失败: {response.msg}")
-            return [], None
+            logger.error(f"获取记录列表失败: {response.msg}")
+            raise BitableError(f"获取记录列表失败: {response.msg}")
 
         # 转换字段 ID 为字段名
         table_schema = self._get_table_schema()
@@ -512,7 +539,7 @@ class BitableTable:
                 field_id_to_name[f.field_id] = f.name
 
         results = []
-        for record in response.data.items:
+        for record in (response.data.items or []):
             item = {}
             for field_id, value in record.fields.items():
                 field_name = field_id_to_name.get(field_id, field_id)
@@ -579,8 +606,8 @@ class BitableTable:
         if response.success():
             return True
         else:
-            print(f"✗ 更新失败: {response.msg}")
-            return False
+            logger.error(f"更新记录失败: {response.msg}")
+            raise BitableError(f"更新记录失败: {response.msg}")
 
     def delete(self, record_id: str) -> bool:
         """
@@ -602,8 +629,8 @@ class BitableTable:
         if response.success():
             return True
         else:
-            print(f"✗ 删除失败: {response.msg}")
-            return False
+            logger.error(f"删除记录失败: {response.msg}")
+            raise BitableError(f"删除记录失败: {response.msg}")
 
 
 # ==================== 便捷函数 ====================

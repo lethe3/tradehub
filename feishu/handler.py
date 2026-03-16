@@ -2,12 +2,18 @@
 飞书消息处理器 - 桥接飞书事件与 core 层
 """
 
+import logging
+import os
+import tempfile
 from typing import Optional
+
 from core import get_dispatcher, HandlerResult
 from feishu.bot import FeishuBot, ImageMessage, TextMessage
 from feishu.cards import CardTemplate, create_card_template
 from ai.ocr import ocr_image
 from ai.weigh_ticket import parse_ocr_to_weigh_ticket, weigh_ticket_to_dict
+
+logger = logging.getLogger(__name__)
 
 
 class MessageHandler:
@@ -41,15 +47,13 @@ class MessageHandler:
         # Step 1: 下载图片
         image_key = message.image_key
         message_id = getattr(message, 'message_id', None)
-        print(f"下载图片: image_key={image_key}, message_id={message_id}")
+        logger.info(f"下载图片: image_key={image_key}, message_id={message_id}")
         image_data = self.bot.get_image(image_key, message_id)
 
         if not image_data:
             return "图片下载失败，请重试"
 
         # 保存到临时文件
-        import tempfile
-        import os
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as f:
             f.write(image_data)
             temp_path = f.name
@@ -57,6 +61,8 @@ class MessageHandler:
         try:
             # Step 2: OCR 提取
             ocr_text = ocr_image(temp_path)
+            if not ocr_text:
+                return "OCR 未识别到内容，请检查图片清晰度"
 
             # Step 3: 解析为结构化数据
             weigh_ticket = parse_ocr_to_weigh_ticket(ocr_text)
@@ -74,6 +80,10 @@ class MessageHandler:
                 "type": "card",
                 "content": card_json,
             }
+
+        except Exception as e:
+            logger.exception(f"磅单识别失败: {e}")
+            return f"磅单识别失败: {e}"
 
         finally:
             # 清理临时文件
