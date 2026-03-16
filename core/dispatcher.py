@@ -18,6 +18,7 @@ class Intent(Enum):
     """支持的意图类型"""
     WEIGH_TICKET = "weigh_ticket"  # 磅单录入
     QUERY_SUMMARY = "query_summary"  # 汇总查询
+    INTRODUCE = "introduce"  # 功能介绍
     UNKNOWN = "unknown"  # 未知
 
 
@@ -157,6 +158,11 @@ def get_dispatcher() -> Dispatcher:
         _default_dispatcher.add_rule(
             lambda m: is_text_with_keyword(m, ["汇总", "查询", "统计"]),
             Intent.QUERY_SUMMARY
+        )
+        # 默认规则：功能介绍
+        _default_dispatcher.add_rule(
+            lambda m: is_text_with_keyword(m, ["介绍", "功能", "帮助", "help", "你能做什么", "怎么用"]),
+            Intent.INTRODUCE
         )
         # 注册默认 handler
         from . import handlers

@@ -8,6 +8,24 @@ from abc import ABC, abstractmethod
 from typing import Any
 from .dispatcher import Handler, HandlerResult, Intent, register_handler
 
+INTRODUCE_TEXT = """👋 你好！我是 TradeHub 贸易助手，专为大宗商品跟单设计。
+
+📋 **当前支持的功能：**
+
+1. **磅单录入**（发送图片）
+   - 发送磅单图片 → 自动 OCR 识别
+   - 识别结果以卡片形式展示，确认后写入台账
+
+2. **汇总查询**（发送文字）
+   - 发送包含「汇总」「查询」「统计」的消息
+   - 返回磅单总条数和总重量
+
+📌 **使用方式：**
+- 直接发图片 → 录磅单
+- 发「汇总」或「查询」→ 看统计
+
+如需帮助，随时@我或发送「帮助」获取此提示。"""
+
 
 # === 汇总查询函数 ===
 
@@ -60,6 +78,22 @@ def get_query_summary_func():
     if _query_summary_func is None:
         _query_summary_func = create_query_summary_func()
     return _query_summary_func
+
+
+class IntroduceHandler(Handler):
+    """功能介绍 handler"""
+
+    intent = Intent.INTRODUCE
+
+    def can_handle(self, message: Any) -> bool:
+        text = getattr(message, "text", None) or getattr(message, "content", None)
+        if not text:
+            return False
+        keywords = ["介绍", "功能", "帮助", "help", "你能做什么", "怎么用"]
+        return any(kw in str(text) for kw in keywords)
+
+    def handle(self, message: Any) -> HandlerResult:
+        return HandlerResult(success=True, message=INTRODUCE_TEXT)
 
 
 class WeighTicketHandler(Handler):
@@ -166,5 +200,6 @@ class QuerySummaryHandler(Handler):
 # 注册 handler（需要在初始化时调用）
 def register_handlers(ocr_func=None, bitable_writer=None, query_func=None):
     """注册所有 handler"""
+    register_handler(IntroduceHandler())
     register_handler(WeighTicketHandler(ocr_func, bitable_writer))
     register_handler(QuerySummaryHandler(query_func))
