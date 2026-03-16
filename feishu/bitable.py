@@ -38,12 +38,18 @@ class FieldType(IntEnum):
     DROP_DOWN_MULTIPLE = 9
     USER = 10
     DEPARTMENT = 11
-    EMAIL = 15
-    PHONE = 16
-    URL = 17
+    PHONE = 13
+    URL = 15
+    EMAIL = 15  # 邮箱是 type=1 + ui_type=Email，但保留兼容
+    ATTACHMENT = 17
     SINGLE_LINK = 18
+    LOOKUP = 19
     FORMULA = 20
-    ROLLUP = 21
+    DUPLEX_LINK = 21
+    LOCATION = 22
+    GROUP = 23
+    CREATED_TIME = 1001
+    UPDATED_TIME = 1002
     AUTO_NUMBER = 1005
 
 from dotenv import load_dotenv
@@ -101,12 +107,12 @@ FIELD_TYPE_MAP = {
     "drop_down_multiple": FieldType.DROP_DOWN_MULTIPLE,
     "user": FieldType.USER,
     "department": FieldType.DEPARTMENT,
-    "email": FieldType.EMAIL,
     "phone": FieldType.PHONE,
     "url": FieldType.URL,
+    "attachment": FieldType.ATTACHMENT,
     "single_link": FieldType.SINGLE_LINK,
     "formula": FieldType.FORMULA,
-    "rollup": FieldType.ROLLUP,
+    "duplex_link": FieldType.DUPLEX_LINK,
     "auto_number": FieldType.AUTO_NUMBER,
 }
 
@@ -158,7 +164,7 @@ class BitableApp:
 
         Args:
             table_name: 表名
-            fields: 字段配置列表（可选，先创建空表，后续再添加字段）
+            fields: 字段配置列表
 
         Returns:
             新创建的 table_id
@@ -177,7 +183,6 @@ class BitableApp:
         table_id = response.data.table_id
         logger.info(f"创建表成功: {table_name} ({table_id})")
 
-        # 如果提供了字段配置，批量添加字段
         if fields:
             table = BitableTable(table_id, app_token=self.app_token, client=self.client)
             for field in fields:
@@ -206,16 +211,6 @@ class BitableTable:
         client: Client | None = None,
         app_token: str | None = None,
     ):
-        """
-        初始化 BitableTable
-
-        Args:
-            table_name: 表名（从 schema.yaml 查找 table_id）
-            table_id: 直接指定 table_id（优先级高于 table_name）
-            schema: Schema 实例（可选，默认自动加载）
-            client: 飞书客户端（可选）
-            app_token: app_token（可选）
-        """
         self.client = client or get_client()
         self.app_token = app_token or get_app_token()
         self.schema = schema or get_schema()
@@ -232,8 +227,8 @@ class BitableTable:
 
         self.table_name = table_name or self._get_table_name_from_api()
 
-        # 缓存 schema，避免每次调用都遍历
-        self._cached_schema = self._get_table_schema()
+        # 缓存 schema 表定义（修复：从 schema 获取，不自引用）
+        self._cached_schema = self.schema.get_table(self.table_name)
 
     def _get_table_name_from_api(self) -> str:
         """从 API 获取表名"""
@@ -267,7 +262,6 @@ class BitableTable:
                 "type": f.type,
                 "name": getattr(f, "field_name", None) or getattr(f, "name", ""),
             }
-            # 单选/多选选项
             if f.type in [3, 4] and hasattr(f, "property") and f.property:
                 field_info["options"] = [
                     {"id": o.id, "name": o.name, "color": getattr(o, "color", None)}
@@ -277,28 +271,13 @@ class BitableTable:
         return fields
 
     def create_field(self, field_config: FieldConfig) -> str:
-        """
-        创建字段
-
-        Args:
-            field_config: 字段配置
-
-        Returns:
-            新字段的 field_id
-        """
-        # 解析字段类型
+        """创建字段"""
         if isinstance(field_config.field_type, str):
             field_type = FIELD_TYPE_MAP.get(field_config.field_type.lower())
             if field_type is None:
                 raise ValueError(f"未知字段类型: {field_config.field_type}")
         else:
             field_type = field_config.field_type
-
-        # 构建字段属性
-        field_property = {}
-        if field_config.field_type in ["single_select", "multi_select"]:
-            # TODO: 支持预设选项
-            pass
 
         request = CreateAppTableFieldRequest.builder() \
             .app_token(self.app_token) \
@@ -316,135 +295,257 @@ class BitableTable:
 
         return response.data.field_id
 
-    # ==================== 记录操作 ====================
+    # ==================== 字段值转换 ====================
+
+    @staticmethod
+    def _to_timestamp_ms(value: Any) -> int | None:
+        """日期值 → 毫秒时间戳"""
+        if value is None or value == "":
+            return None
+
+        if isinstance(value, (int, float)):
+            if value > 1_000_000_000_000:
+                return int(value)
+            elif value > 1_000_000_000:
+                return int(value * 1000)
+            return None
+
+        if isinstance(value, datetime):
+            return int(value.timestamp() * 1000)
+
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+            for fmt in [
+                "%Y-%m-%d",
+                "%Y/%m/%d",
+                "%Y%m%d",
+                "%Y年%m月%d日",
+                "%Y-%m-%d %H:%M",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y/%m/%d %H:%M",
+            ]:
+                try:
+                    dt = datetime.strptime(value, fmt)
+                    return int(dt.timestamp() * 1000)
+                except ValueError:
+                    continue
+        return None
 
     def _convert_value_for_write(self, field_name: str, value: Any) -> Any:
         """
-        转换写入值，处理字段类型转换
+        转换写入值，根据 schema 字段类型做类型转换
 
-        Args:
-            field_name: 字段名
-            value: 原始值
+        飞书 Bitable API 对字段值的格式要求：
+        ┌───────┬──────────────────────────────────────────────┐
+        │ type  │ API 要求                                      │
+        ├───────┼──────────────────────────────────────────────┤
+        │ 1     │ str（文本，含条码/邮箱 ui_type 变体）          │
+        │ 2     │ float/int（数字，含进度/货币/评分变体）         │
+        │ 3     │ str（单选：选项名称）                          │
+        │ 4     │ list[str]（多选：选项名称列表）                │
+        │ 5     │ int（日期：毫秒时间戳）                        │
+        │ 7     │ bool（复选框）                                │
+        │ 11    │ list[dict]（人员：[{"id": "ou_xxx"}]）         │
+        │ 13    │ str（电话号码）                                │
+        │ 15    │ {"link": str, "text": str}（超链接）           │
+        │ 17    │ 不支持直接写入（附件需上传接口）                │
+        │ 18    │ list[str]（单向关联：record_id 数组）           │
+        │ 19    │ 只读（查找引用）                               │
+        │ 20    │ 只读（公式）                                   │
+        │ 21    │ list[str]（双向关联：record_id 数组）           │
+        │ 22    │ {"location": str, ...}（地理位置）              │
+        │ 23    │ list[dict]（群组：[{"id": "oc_xxx"}]）         │
+        │ 1001  │ 只读（创建时间）                               │
+        │ 1002  │ 只读（最后更新时间）                           │
+        │ 1005  │ 只读（自动编号）                               │
+        └───────┴──────────────────────────────────────────────┘
 
         Returns:
-            飞书 API 格式的值
+            转换后的值，None 表示跳过该字段
         """
         if value is None:
             return None
 
-        table_schema = self._get_table_schema()
-        if not table_schema:
-            # 没有 schema 定义，直接返回原始值
-            return value
-
-        field = table_schema.get_field(field_name)
+        field = self._cached_schema.get_field(field_name) if self._cached_schema else None
         if not field:
             return value
 
-        field_type = field.type
+        t = field.type
 
-        # 日期字段 (type=5) - 转换为毫秒时间戳
-        if field_type == 5 and value:
+        # === 只读字段 - 不可写入 ===
+        if t in (1005, 1001, 1002, 20, 19):
+            return None
+
+        # === 附件 (17) - 不支持直接写入 ===
+        if t == 17:
+            return None
+
+        # === 文本 (1)，含条码/邮箱变体 ===
+        if t == 1:
+            s = str(value).strip()
+            return s if s else None
+
+        # === 数字 (2)，含进度/货币/评分变体 ===
+        if t == 2:
+            if isinstance(value, (int, float)):
+                return value
+            try:
+                cleaned = str(value).replace(",", "").replace(" ", "").strip()
+                if not cleaned:
+                    return None
+                return float(cleaned)
+            except (ValueError, TypeError):
+                return None
+
+        # === 单选 (3) ===
+        if t == 3:
+            s = str(value).strip()
+            return s if s else None
+
+        # === 多选 (4) ===
+        if t == 4:
+            if isinstance(value, list):
+                result = [str(v).strip() for v in value if str(v).strip()]
+                return result if result else None
+            s = str(value).strip()
+            return [s] if s else None
+
+        # === 日期 (5) - 毫秒时间戳 ===
+        if t == 5:
+            return self._to_timestamp_ms(value)
+
+        # === 复选框 (7) ===
+        if t == 7:
+            if isinstance(value, bool):
+                return value
             if isinstance(value, str):
-                for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"]:
-                    try:
-                        dt = datetime.strptime(value, fmt)
-                        return int(dt.timestamp() * 1000)
-                    except ValueError:
-                        continue
-            elif isinstance(value, datetime):
-                return int(value.timestamp() * 1000)
+                return value.lower() in ("true", "1", "yes", "是")
+            return bool(value)
 
-        # 单选字段 (type=3) - 直接传选项名称，不需要转换
-        # 写入时飞书会自动匹配选项（不存在会自动创建）
-        # 见: feishu-bitable SKILL - 单选字段传字符串
+        # === 人员 (11) - [{"id": "ou_xxx"}] ===
+        if t == 11:
+            if isinstance(value, list):
+                return value
+            if isinstance(value, str) and value.strip():
+                return [{"id": value.strip()}]
+            return None
 
-        # 多选字段 (type=4) - 直接传选项名称数组
-        # 写入时飞书会自动匹配选项（不存在会自动创建）
+        # === 电话号码 (13) ===
+        if t == 13:
+            s = str(value).strip()
+            return s if s else None
 
-        # 关联字段 (type=18 单向关联, type=21 双向关联)
-        # 直接传字符串数组 ["record_id1", "record_id2"]
-        # 见: feishu-bitable SKILL - 简化写入可直接传数组
-        if field_type in [18, 21] and value:
+        # === 超链接 (15) - {"link": str, "text": str} ===
+        if t == 15:
+            if isinstance(value, dict):
+                return value
+            s = str(value).strip()
+            return {"link": s, "text": s} if s else None
+
+        # === 单向关联 (18) / 双向关联 (21) - list[str] ===
+        if t in (18, 21):
+            if isinstance(value, list):
+                filtered = [str(v).strip() for v in value if str(v).strip()]
+                return filtered if filtered else None
             if isinstance(value, str):
-                # 用户直接传单个 record_id，返回字符串
-                return value
-            elif isinstance(value, list):
-                # 用户传数组，保持数组格式（飞书期望字符串数组）
-                return value
-            elif isinstance(value, dict):
-                # 用户传了 dict，转为 link_record_ids 数组
-                if "link_record_ids" in value:
-                    return value["link_record_ids"]
-                return value
-            return value
+                s = value.strip()
+                return [s] if s else None
+            return None
 
+        # === 地理位置 (22) ===
+        if t == 22:
+            if isinstance(value, dict):
+                return value
+            s = str(value).strip()
+            return {"location": s} if s else None
+
+        # === 群组 (23) - [{"id": "oc_xxx"}] ===
+        if t == 23:
+            if isinstance(value, list):
+                return value
+            if isinstance(value, str) and value.strip():
+                return [{"id": value.strip()}]
+            return None
+
+        # === 未知类型 - 原样返回 ===
         return value
 
     def _convert_value_from_read(self, field_id: str, value: Any) -> Any:
         """
-        转换读取值，将飞书格式转换为人可读的格式
+        转换读取值，将飞书格式转换为人可读格式
 
-        Args:
-            field_id: 字段 ID
-            value: 飞书返回的原始值
-
-        Returns:
-            人可读的格式
+        ┌───────┬──────────────────────────────────────┐
+        │ type  │ 转换规则                              │
+        ├───────┼──────────────────────────────────────┤
+        │ 5     │ 毫秒时间戳 → "YYYY-MM-DD" 字符串     │
+        │ 1001  │ 同上                                 │
+        │ 1002  │ 同上                                 │
+        │ 3     │ 选项 ID → 选项名称                    │
+        │ 4     │ 选项 ID 列表 → 名称列表               │
+        │ 15    │ {"link": ..., "text": ...} → link    │
+        │ 其他  │ 原样返回                              │
+        └───────┴──────────────────────────────────────┘
         """
         if value is None:
             return None
 
-        table_schema = self._get_table_schema()
-        if not table_schema:
-            return value
-
-        field = table_schema.get_field_by_id(field_id)
+        field = self._cached_schema.get_field_by_id(field_id) if self._cached_schema else None
         if not field:
             return value
 
-        field_type = field.type
+        t = field.type
 
-        # 日期字段 (FieldType.DATE) - 毫秒时间戳转换为日期字符串
-        if field_type == FieldType.DATE and value:
-            if isinstance(value, (int, float)):
-                try:
-                    dt = datetime.fromtimestamp(value / 1000, tz=timezone.utc)
-                    return dt.strftime("%Y-%m-%d")
-                except (ValueError, OSError):
-                    return str(value)
+        # 日期类 (5, 1001, 1002) - 毫秒时间戳 → 日期字符串
+        if t in (5, 1001, 1002) and isinstance(value, (int, float)):
+            try:
+                dt = datetime.fromtimestamp(value / 1000, tz=timezone.utc)
+                return dt.strftime("%Y-%m-%d")
+            except (ValueError, OSError):
+                return str(value)
 
-        # 单选字段 (FieldType.SINGLE_SELECT) - 选项 ID 转换为选项名称
-        if field_type == FieldType.SINGLE_SELECT and value:
-            if isinstance(value, str):
-                for opt in field.options:
-                    if opt.id == value:
-                        return opt.name
+        # 单选 (3) - 选项 ID → 名称
+        if t == 3 and isinstance(value, str):
+            for opt in field.options:
+                if opt.id == value:
+                    return opt.name
+            return value
 
-        # 多选字段 (FieldType.MULTI_SELECT) - 选项 ID 列表转换为选项名称列表
-        if field_type == FieldType.MULTI_SELECT and value:
-            if isinstance(value, list):
-                id_to_name = {opt.id: opt.name for opt in field.options}
-                return [id_to_name.get(v, v) for v in value]
+        # 多选 (4) - 选项 ID 列表 → 名称列表
+        if t == 4 and isinstance(value, list):
+            id_to_name = {opt.id: opt.name for opt in field.options}
+            return [id_to_name.get(v, v) for v in value]
+
+        # 超链接 (15)
+        if t == 15 and isinstance(value, dict):
+            return value.get("link", value.get("text", str(value)))
 
         return value
+
+    # ==================== 记录操作 ====================
 
     def create(self, data: dict) -> str | None:
         """
         创建记录
 
         Args:
-            data: 字段名到值的字典，如 {"合同编号": "HT-2024-001", "我方主体": "公司A"}
+            data: 字段名到值的字典，如 {"合同编号": "HT-2024-001"}
 
         Returns:
-            record_id 或 None
+            record_id
         """
-        # 转换字段值
+        # 转换字段值，跳过空值和不可写字段
         fields = {}
         for field_name, value in data.items():
+            if value is None or value == "":
+                continue
             converted = self._convert_value_for_write(field_name, value)
             if converted is not None:
                 fields[field_name] = converted
+
+        if not fields:
+            raise BitableError("没有有效字段可写入")
 
         record = AppTableRecord.builder().fields(fields).build()
 
@@ -465,11 +566,8 @@ class BitableTable:
         """
         获取单条记录
 
-        Args:
-            record_id: 记录 ID
-
         Returns:
-            字段名到值的字典，或 None
+            字段名到值的字典
         """
         request = GetAppTableRecordRequest.builder() \
             .app_token(self.app_token) \
@@ -482,11 +580,10 @@ class BitableTable:
             logger.error(f"获取记录失败: {response.msg}")
             raise BitableError(f"获取记录失败: {response.msg}")
 
-        # 转换字段 ID 为字段名，并转换值格式
         result = {}
         raw_fields = response.data.record.fields
 
-        table_schema = self._get_table_schema()
+        table_schema = self._cached_schema
         field_id_to_name = {}
         if table_schema:
             for f in table_schema.fields:
@@ -507,11 +604,6 @@ class BitableTable:
         """
         列出记录
 
-        Args:
-            filter_formula: 过滤公式，如 '合同方向 == "采购"'
-            page_size: 每页数量（最大 100）
-            page_token: 分页 token
-
         Returns:
             (记录列表, 下一个 page_token)
         """
@@ -531,8 +623,7 @@ class BitableTable:
             logger.error(f"获取记录列表失败: {response.msg}")
             raise BitableError(f"获取记录列表失败: {response.msg}")
 
-        # 转换字段 ID 为字段名
-        table_schema = self._get_table_schema()
+        table_schema = self._cached_schema
         field_id_to_name = {}
         if table_schema:
             for f in table_schema.fields:
@@ -550,16 +641,7 @@ class BitableTable:
         return results, response.data.page_token
 
     def list_all(self, filter_formula: str | None = None, page_size: int = 100) -> List[dict]:
-        """
-        列出所有记录（自动分页）
-
-        Args:
-            filter_formula: 过滤公式
-            page_size: 每页数量
-
-        Returns:
-            所有记录列表
-        """
+        """列出所有记录（自动分页）"""
         all_records = []
         page_token = None
 
@@ -586,9 +668,10 @@ class BitableTable:
         Returns:
             是否成功
         """
-        # 转换字段值
         fields = {}
         for field_name, value in data.items():
+            if value is None or value == "":
+                continue
             converted = self._convert_value_for_write(field_name, value)
             if converted is not None:
                 fields[field_name] = converted
@@ -612,9 +695,6 @@ class BitableTable:
     def delete(self, record_id: str) -> bool:
         """
         删除记录
-
-        Args:
-            record_id: 记录 ID
 
         Returns:
             是否成功
