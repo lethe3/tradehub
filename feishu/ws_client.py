@@ -52,6 +52,19 @@ class WebSocketBot:
             except Exception as e:
                 print(f"注册失败: p2.{event_type}: {e}")
 
+        # 注册交互式卡片回调事件（im.interactive）
+        for event_type in ["im.interactive", "im.interactive_v1"]:
+            try:
+                builder.register_p1_customized_event(event_type, self._handle_interactive_event)
+                print(f"注册成功: p1.{event_type}")
+            except Exception as e:
+                print(f"注册失败: p1.{event_type}: {e}")
+            try:
+                builder.register_p2_customized_event(event_type, self._handle_interactive_event)
+                print(f"注册成功: p2.{event_type}")
+            except Exception as e:
+                print(f"注册失败: p2.{event_type}: {e}")
+
         # build 会返回新的 handler，需要重新赋值
         handler = builder.build()
 
@@ -176,6 +189,44 @@ class WebSocketBot:
             import traceback
             traceback.print_exc()
 
+    def _handle_interactive_event(self, event):
+        """
+        处理交互式卡片回调事件
+
+        Args:
+            event: 飞书交互事件
+        """
+        try:
+            print(f"DEBUG: 收到交互事件: type={getattr(event, 'type', getattr(event.header, 'event_type', 'unknown'))}")
+
+            # 提取事件数据
+            event_data = {}
+            if hasattr(event, 'event') and isinstance(event.event, dict):
+                event_data = event.event
+
+            # 解析回调数据
+            callback_type = event_data.get("type", "")
+            callback_content = event_data.get("content", {})
+
+            print(f"交互事件: callback_type={callback_type}")
+
+            # 调用交互处理器（如果已注册）
+            if hasattr(self, '_interactive_handler') and self._interactive_handler:
+                self._interactive_handler({
+                    "type": callback_type,
+                    "content": callback_content,
+                    "event": event_data,
+                })
+
+        except Exception as e:
+            print(f"处理交互事件失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def set_interactive_handler(self, handler: Callable):
+        """设置交互事件处理器"""
+        self._interactive_handler = handler
+
     def stop(self):
         """停止 WebSocket 连接"""
         # TODO: 实现停止逻辑
@@ -209,12 +260,23 @@ def create_ws_bot(config_path: str = ".env") -> WebSocketBot:
     # 消息处理器
     message_handler = MessageHandler(feishu_bot)
 
+    # 已处理的消息 ID 集合（去重）
+    processed_messages = set()
+
     def event_handler(event: dict):
         """处理收到的事件"""
         msg_type = event.get("type", "")
         chat_id = event.get("chat_id", "")
         sender_id = event.get("sender_id", {})
         content = event.get("content", "")
+        message_id = event.get("message_id", "")
+
+        # 去重：避免 p1 和 p2 格式重复处理
+        if message_id and message_id in processed_messages:
+            print(f"跳过重复消息: {message_id}")
+            return
+        if message_id:
+            processed_messages.add(message_id)
 
         print(f"收到消息: type={msg_type}, chat_id={chat_id}")
 
@@ -271,18 +333,122 @@ def create_ws_bot(config_path: str = ".env") -> WebSocketBot:
         msg_obj.sender_id = sender_id
         msg_obj.message_id = event.get("message_id", "")
 
-        # 处理消息并获取回复
-        response_text = message_handler.handle(msg_obj)
-
-        # 发送回复（私聊发送给 sender_id 中的 open_id）
+        # 即时反馈：图片消息立即发送"收到"提示
         open_id = sender_id.get("open_id", "") if isinstance(sender_id, dict) else ""
-        if open_id:
-            result = feishu_bot.send_message(open_id, response_text)
-            print(f"回复结果: {result}")
-        else:
-            print(f"无法获取发送者 open_id: {sender_id}")
+        if open_id and msg_type == "image":
+            # 立即发送"收到"反馈
+            feishu_bot.send_message(open_id, "📥 收到图片，正在识别 OCR，请稍候...")
 
-    return WebSocketBot(app_id, app_secret, event_handler, verification_token, encrypt_key)
+        # 处理消息并获取回复
+        response = message_handler.handle(msg_obj)
+
+        # 根据返回类型发送不同响应
+        if isinstance(response, dict) and response.get("type") == "card":
+            # 卡片消息：发送交互式卡片
+            card_json = response.get("content", "")
+            result = feishu_bot.send_interactive_card(open_id, card_json)
+            print(f"卡片发送结果: {result}")
+        else:
+            # 文本消息
+            response_text = response if isinstance(response, str) else str(response)
+            if open_id:
+                result = feishu_bot.send_message(open_id, response_text)
+                print(f"回复结果: {result}")
+
+    # 创建 WebSocket Bot
+    ws_bot = WebSocketBot(app_id, app_secret, event_handler, verification_token, encrypt_key)
+
+    # 注册交互事件处理器
+    def interactive_handler(event: dict):
+        """处理卡片交互回调"""
+        from feishu.cards import parse_card_callback
+        from feishu.bitable import BitableTable
+        import json
+
+        event_type = event.get("type", "")
+        content = event.get("content", {})
+
+        print(f"收到交互回调: type={event_type}")
+
+        # 解析回调数据
+        if event_type == "interactive":
+            # 回调的 content 是 JSON 字符串
+            callback_value = {}
+            if isinstance(content, str):
+                try:
+                    content = json.loads(content)
+                except json.JSONDecodeError:
+                    print(f"解析回调内容失败: {content}")
+                    return
+
+            # 获取 value 字段
+            callback_value = content.get("value", {})
+
+            # 解析动作
+            try:
+                callback = parse_card_callback(callback_value)
+            except ValueError as e:
+                print(f"解析回调失败: {e}")
+                return
+
+            print(f"解析结果: action={callback.action}, table={callback.table_name}")
+            print(f"用户输入数据: {callback.record_data}")
+
+            # 根据动作处理
+            if callback.action == "approve":
+                # 审核通过：写入 Bitable
+                try:
+                    table = BitableTable(table_name=callback.table_name)
+                    record_id = table.create(callback.record_data)
+                    print(f"写入成功: record_id={record_id}")
+
+                    # 发送成功通知
+                    # 获取发送者 open_id
+                    sender_id = content.get("sender_id", {})
+                    open_id = sender_id.get("open_id", "") if isinstance(sender_id, dict) else ""
+
+                    if open_id:
+                        # 构建成功消息
+                        record_info = "\n".join([
+                            f"• {k}: {v}" for k, v in callback.record_data.items()
+                        ])
+                        success_msg = f"✅ 磅单已成功录入！\n\n{record_info}"
+                        feishu_bot.send_message(open_id, success_msg)
+                except Exception as e:
+                    print(f"写入失败: {e}")
+                    # 发送失败通知
+                    sender_id = content.get("sender_id", {})
+                    open_id = sender_id.get("open_id", "") if isinstance(sender_id, dict) else ""
+                    if open_id:
+                        feishu_bot.send_message(open_id, f"❌ 写入失败: {e}")
+
+            elif callback.action == "edit":
+                # 先录入：返回编辑态卡片
+                sender_id = content.get("sender_id", {})
+                open_id = sender_id.get("open_id", "") if isinstance(sender_id, dict) else ""
+
+                if open_id:
+                    from feishu.cards import CardTemplate
+                    template = CardTemplate()
+                    card_json = template.generate_with_inputs(
+                        table_name=callback.table_name,
+                        record_data=callback.record_data,
+                        title="磅单编辑（修改后提交）",
+                    )
+                    result = feishu_bot.send_interactive_card(open_id, card_json)
+                    print(f"编辑卡片发送结果: {result}")
+
+            elif callback.action == "cancel":
+                # 取消
+                sender_id = content.get("sender_id", {})
+                open_id = sender_id.get("open_id", "") if isinstance(sender_id, dict) else ""
+                if open_id:
+                    feishu_bot.send_message(open_id, "已取消操作。如需继续，请重新发送磅单图片。")
+
+    # 设置交互处理器
+    ws_bot.set_interactive_handler(interactive_handler)
+
+    return ws_bot
 
 
 if __name__ == "__main__":

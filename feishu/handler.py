@@ -5,7 +5,9 @@
 from typing import Optional
 from core import get_dispatcher, HandlerResult
 from feishu.bot import FeishuBot, ImageMessage, TextMessage
+from feishu.cards import CardTemplate, create_card_template
 from ai.ocr import ocr_image
+from ai.weigh_ticket import parse_ocr_to_weigh_ticket, weigh_ticket_to_dict
 
 
 class MessageHandler:
@@ -14,18 +16,17 @@ class MessageHandler:
     def __init__(self, bot: FeishuBot):
         self.bot = bot
         self.dispatcher = get_dispatcher()
+        self.card_template = create_card_template()
 
-    def handle(self, message) -> str:
+    def handle(self, message) -> str | dict:
         """
-        处理消息，返回响应文本
-
-        Args:
-            message: BotMessage 对象（ImageMessage 或 TextMessage）
+        处理消息，返回响应
 
         Returns:
-            响应文本
+            str: 文本消息
+            dict: 包含 "type": "card" 的字典，用于发送卡片
         """
-        # 图片消息 → 下载图片 → OCR
+        # 图片消息 → 下载图片 → OCR → 卡片
         if isinstance(message, ImageMessage):
             return self._handle_image(message)
 
@@ -35,8 +36,8 @@ class MessageHandler:
 
         return "暂不支持该类型消息"
 
-    def _handle_image(self, message: ImageMessage) -> str:
-        """处理图片消息"""
+    def _handle_image(self, message: ImageMessage) -> str | dict:
+        """处理图片消息，返回卡片"""
         # Step 1: 下载图片
         image_key = message.image_key
         message_id = getattr(message, 'message_id', None)
@@ -57,8 +58,22 @@ class MessageHandler:
             # Step 2: OCR 提取
             ocr_text = ocr_image(temp_path)
 
-            # Step 3: 返回 OCR 结果（待实现结构化解析）
-            return f"磅单已识别，请确认以下信息：\n\n{ocr_text[:500]}"
+            # Step 3: 解析为结构化数据
+            weigh_ticket = parse_ocr_to_weigh_ticket(ocr_text)
+            record_data = weigh_ticket_to_dict(weigh_ticket)
+
+            # Step 4: 生成只读卡片（飞书不支持 plain_text_input）
+            card_json = self.card_template.generate(
+                table_name="weigh_tickets",
+                record_data=record_data,
+                title="磅单 OCR 结果确认",
+            )
+
+            # 返回卡片
+            return {
+                "type": "card",
+                "content": card_json,
+            }
 
         finally:
             # 清理临时文件

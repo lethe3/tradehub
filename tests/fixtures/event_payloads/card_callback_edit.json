@@ -1,0 +1,20 @@
+{
+  "type": "interactive",
+  "event": {
+    "type": "interactive",
+    "content": {
+      "value": {
+        "action": "edit",
+        "table": "weigh_tickets",
+        "磅单编号": "PD-2024-001",
+        "关联合同": "HT-2024-002",
+        "货物品名": "铜精矿",
+        "净重(吨)": "26.500",
+        "过磅日期": "2024-01-16"
+      },
+      "sender_id": {
+        "open_id": "ou_xxxxx"
+      }
+    }
+  }
+}

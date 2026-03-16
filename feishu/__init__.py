@@ -2,8 +2,8 @@
 from feishu.bitable import BitableApp, BitableTable, FieldConfig, app, table
 from feishu.bot import FeishuBot, BotMessage, TextMessage, ImageMessage, FileMessage
 from feishu.handler import MessageHandler, create_message_handler
-from feishu.cards import build_review_card, parse_card_callback
-from feishu.pipeline import WeighTicketPipeline, create_pipeline
+from feishu.cards import CardTemplate, create_card_template, CardCallback, parse_card_callback
+from feishu.ws_client import WebSocketBot, create_ws_bot
 
 __all__ = [
     "BitableApp",
@@ -18,8 +18,10 @@ __all__ = [
     "FileMessage",
     "MessageHandler",
     "create_message_handler",
-    "build_review_card",
+    "CardTemplate",
+    "create_card_template",
+    "CardCallback",
     "parse_card_callback",
-    "WeighTicketPipeline",
-    "create_pipeline",
+    "WebSocketBot",
+    "create_ws_bot",
 ]

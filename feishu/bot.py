@@ -140,18 +140,42 @@ class FeishuBot:
 
     def send_interactive_card(self, receive_id: str, card_json: str) -> dict:
         """发送卡片消息"""
-        response = self.client.im.v1.message.create({
-            "receive_id_type": "open_id",
-        }, {
-            "receive_id": receive_id,
-            "msg_type": "interactive",
-            "content": card_json,
-        })
+        import requests
 
-        if response.success():
-            return {"code": 0, "data": response.data}
+        # 获取 token
+        token_resp = requests.post(
+            'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
+            json={"app_id": self.app_id, "app_secret": self.app_secret}
+        )
+        token_data = token_resp.json()
+        if token_data.get('code') != 0:
+            return {"code": token_data.get('code'), "msg": token_data.get('msg')}
+
+        token = token_data.get('tenant_access_token')
+
+        # 飞书 API：content 需要双重 JSON 序列化
+        # 1. 先把 card_json 字符串解析为 dict
+        # 2. 再把整个请求序列化为 JSON 字符串
+        card_dict = json.loads(card_json)
+
+        resp = requests.post(
+            'https://open.feishu.cn/open-apis/im/v1/messages',
+            headers={
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json; charset=utf-8',
+            },
+            params={'receive_id_type': 'open_id'},
+            data=json.dumps({
+                'receive_id': receive_id,
+                'msg_type': 'interactive',
+                'content': json.dumps(card_dict, ensure_ascii=False),
+            }, ensure_ascii=False)
+        )
+        data = resp.json()
+        if data.get('code') == 0:
+            return {"code": 0, "data": data.get('data')}
         else:
-            return {"code": response.get_code(), "msg": response.get_msg()}
+            return {"code": data.get('code'), "msg": data.get('msg')}
 
     def upload_image(self, image_path: str) -> Optional[str]:
         """上传图片，返回 image_key"""
