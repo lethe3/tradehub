@@ -24,4 +24,5 @@ __all__ = [
     "parse_card_callback",
     "WebSocketBot",
     "create_ws_bot",
+    "EventRouter",
 ]
