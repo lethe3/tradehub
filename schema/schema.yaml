@@ -48,9 +48,6 @@ assay_reports:
   name: 化验单
   table_id: tblIH73zq4sdzyVu
 cash_flows:
-  # 资金流水表：仅记录实际收付款项（预付款/结算款/运费等）
-  # 计算明细已迁移至 settlement_items 表
-  # 注意：Bitable 中的实际字段需通过 setup_tables.py 重建后更新此处 field_id
   fields:
   - field_id: fldJeVrzo2
     name: 多行文本
@@ -75,75 +72,6 @@ cash_flows:
     type: 1
   name: 资金流水
   table_id: tblPWyG1hmvlm8oQ
-settlement_items:
-  # 结算明细表：每行 = 一条磅单 × 一个计价元素（或一条杂质扣款）
-  # table_id 和 field_id 在运行 setup_tables.py 建表后更新
-  fields:
-  - field_id: fld_si_auto_no
-    name: 结算编号
-    type: 1005
-  - field_id: fld_si_contract
-    name: 关联合同
-    type: 1
-  - field_id: fld_si_ticket
-    name: 关联磅单
-    type: 1
-  - field_id: fld_si_sample
-    name: 样号
-    type: 1
-  - field_id: fld_si_row_type
-    name: 行类型
-    type: 3
-  - field_id: fld_si_direction
-    name: 方向
-    type: 3
-  - field_id: fld_si_element
-    name: 计价元素
-    type: 3
-  - field_id: fld_si_basis
-    name: 计价基准
-    type: 3
-  - field_id: fld_si_source
-    name: 基准价来源
-    type: 3
-  - field_id: fld_si_formula
-    name: 单价公式
-    type: 3
-  - field_id: fld_si_wet
-    name: 湿重(吨)
-    type: 2
-  - field_id: fld_si_h2o
-    name: H2O(%)
-    type: 2
-  - field_id: fld_si_dry
-    name: 干重(吨)
-    type: 2
-  - field_id: fld_si_assay_grade
-    name: 化验品位
-    type: 2
-  - field_id: fld_si_grade_deduction
-    name: 品位扣减
-    type: 2
-  - field_id: fld_si_eff_grade
-    name: 有效品位
-    type: 2
-  - field_id: fld_si_metal_qty
-    name: 金属量(吨)
-    type: 2
-  - field_id: fld_si_price
-    name: 单价
-    type: 2
-  - field_id: fld_si_unit
-    name: 单价单位
-    type: 3
-  - field_id: fld_si_amount
-    name: 金额
-    type: 2
-  - field_id: fld_si_note
-    name: 备注
-    type: 1
-  name: 结算明细
-  table_id: PENDING_RUN_SETUP_TABLES
 contracts:
   fields:
   - field_id: fld16duzs9
@@ -164,6 +92,9 @@ contracts:
     - color: 2
       id: opt177012076
       name: 公司A
+    - color: 3
+      id: opt526444142
+      name: optADKBLH2
     type: 3
   - field_id: fldgjXaSaD
     name: 合同方向
@@ -174,6 +105,9 @@ contracts:
     - color: 1
       id: optvuL4GPw
       name: 销售
+    - color: 2
+      id: opt1008187815
+      name: opt2Almv7t
     type: 3
   - field_id: fldiBMP8vP
     name: 交易对手
@@ -187,6 +121,9 @@ contracts:
     - color: 2
       id: opt183407045
       name: 测试供应商-已更新
+    - color: 3
+      id: opt867480007
+      name: opt1050603482
     type: 3
   - field_id: fld2WRdug6
     name: 签订日期
@@ -199,6 +136,80 @@ contracts:
     type: 1
   name: 合同表
   table_id: tbl88afziZfqONru
+settlement_items:
+  fields:
+  - field_id: fldnkuxgtV
+    name: 多行文本
+    type: 1
+  - field_id: fldAURrpJF
+    name: 关联合同
+    type: 1
+  - field_id: fldDgBFt6j
+    name: 关联磅单
+    type: 1
+  - field_id: fldKS1VQ9T
+    name: 样号
+    type: 1
+  - field_id: fldSveBEv6
+    name: 行类型
+    options: []
+    type: 3
+  - field_id: fldAwxPxC3
+    name: 方向
+    options: []
+    type: 3
+  - field_id: fldlpqRDiH
+    name: 计价元素
+    options: []
+    type: 3
+  - field_id: fldfZTzGl4
+    name: 计价基准
+    options: []
+    type: 3
+  - field_id: fldqXG9WwJ
+    name: 基准价来源
+    options: []
+    type: 3
+  - field_id: fldChxCv2Q
+    name: 单价公式
+    options: []
+    type: 3
+  - field_id: fldtGoXWqj
+    name: 湿重(吨)
+    type: 2
+  - field_id: fldu7IMhxE
+    name: H2O(%)
+    type: 2
+  - field_id: fldHWMBLG7
+    name: 干重(吨)
+    type: 2
+  - field_id: fld3t0Z0tc
+    name: 化验品位
+    type: 2
+  - field_id: flda14wY7K
+    name: 品位扣减
+    type: 2
+  - field_id: fldoahe4va
+    name: 有效品位
+    type: 2
+  - field_id: fldlYKOmzQ
+    name: 金属量(吨)
+    type: 2
+  - field_id: fldDVsZ21A
+    name: 单价
+    type: 2
+  - field_id: flduE5vutS
+    name: 单价单位
+    options: []
+    type: 3
+  - field_id: fldYPeqkld
+    name: 金额
+    type: 2
+  - field_id: fldouwuM83
+    name: 备注
+    type: 1
+  name: 结算明细
+  table_id: tblwgSX2TAWW4ztg
 stock_inflows:
   fields:
   - field_id: fldzewxjys
