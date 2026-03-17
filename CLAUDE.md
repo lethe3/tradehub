@@ -4,15 +4,19 @@
 
 TradeHub：飞书 Bot + Bitable 的大宗商品贸易 AI 系统，当前从跟单切入验证。
 
-## ⚠️ 启动检查（每次新会话必须执行，不可跳过）
+## ⚠️ 启动检查（每次新会话）
 
-依次读取以下文件，全部读完后用一句话确认当前状态，再等待任务指令：
+**必读（每次，共 2 个文件）：**
+1. `~/workspace/zen/Projects/TradeHub/status.md` — 当前状态仪表盘
+2. `DEV_RULES.md` — 开发规范
 
-1. `~/workspace/zen/Projects/_index.md`
-2. `~/workspace/zen/Projects/TradeHub/status.md`
-3. `~/workspace/zen/Projects/TradeHub/decisions.md`
-4. `~/workspace/zen/Projects/TradeHub/context.md`
-5. `DEV_RULES.md`（开发规范，每次必读）
+**按需读（任务相关时才读）：**
+- 涉及架构/历史背景 → `~/workspace/zen/Projects/TradeHub/context.md`
+- 涉及历史技术选型 → `~/workspace/zen/Projects/TradeHub/decisions.md`
+- 追溯近期细节 → `~/workspace/zen/Projects/TradeHub/log.md`（只读最近一个里程碑）
+- 合同/测算 → `~/workspace/zen/Projects/TradeHub/Work/Contracts/` 或 `Work/Estimates/`
+
+读完 status.md 后用一句话确认当前状态，再等待任务指令。
 
 ## 协作者
 
@@ -100,3 +104,23 @@ tradehub/
 - `.env` 和 `.obsidian/` 不提交
 
 发现新技术经验时，主动告诉 Zhang 应该写到哪个文件。
+
+## log 读取规则
+- 默认只读 log.md 最近一个里程碑的条目（往上滚直到遇到上一个 ## 日期标题为止）
+- 需要追溯历史时才继续往上读
+- 每次里程碑闭合后，将超过 2 个里程碑前的条目归档到 log_archive.md（剪切追加），保持 log.md 轻量
+
+## decisions.md 写入触发条件
+遇到以下情况时，主动在 decisions.md 追加一条记录（不等 Zhang 指令）：
+- 做了有 trade-off 的技术选型（选 A 放弃 B）
+- 否定了一个看起来合理的方案
+- 发现了一个"坑"并绕过去了
+
+格式：
+### [决策标题] YYYY-MM-DD
+- 背景：
+- 选择：
+- 理由：
+- 否定的方案：
+
+写完后告知 Zhang（在回复中提一句）。
