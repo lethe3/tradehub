@@ -24,6 +24,7 @@ Zhang：统计学背景，擅长数据结构设计和业务逻辑，不擅长工
 - 工程脚手架你主导，业务规则 Zhang 主导
 - 每次生成代码后简要说明"这段在做什么"
 - 不确定的业务逻辑先问，不要猜
+- 结算相关的业务规则（计价公式、扣款阶梯、取整策略）由 Zhang 主导定义，通常以合同摘录卡 YAML 的形式提供
 
 ## ⚠️ 工作流程
 ```
@@ -65,7 +66,8 @@ Zhang 说"确认完成"后：
 ```
 tradehub/
 ├── feishu/       ← 平台层：飞书 Bot(WebSocket)、Bitable API、消息卡片
-├── core/         ← 业务层：意图路由、技能模块、字段校验、计价
+├── core/         ← 业务层：意图路由、技能模块、计价引擎、数据串联
+│   └── models/   ← Pydantic 数据模型（batch · cash_flow · pricing）
 ├── ai/           ← AI 层：OCR/VLM 调用、Instructor 结构化解析、prompt 模板
 ├── schema/       ← Schema层：schema.yaml + loader + sync
 └── main.py       ← 入口：只做组装和调度
@@ -73,7 +75,7 @@ tradehub/
 
 **核心规则：`core/` 不允许 import `feishu/` 或 `ai/`。**
 
-`feishu/` 将飞书事件转为标准输入交给 `core/`，`ai/` 负责 OCR/LLM 调用并返回标准输出。不需要写抽象基类或适配器模式，保持简单。
+`core/models/` 是纯 Pydantic 数据模型，零外部依赖。`core/` 下的计算模块（linking.py、settlement.py）只接收和返回这些模型，Bitable 读写由 `feishu/` 层在外部完成。`feishu/` 将飞书事件转为标准输入交给 `core/`，`ai/` 负责 OCR/LLM 调用并返回标准输出。不需要写抽象基类或适配器模式，保持简单。
 
 ## 关键依赖
 
@@ -81,6 +83,7 @@ tradehub/
 - 结构化解析：`instructor` + `pydantic`
 - OCR（开发期）：GLM-OCR API
 - 业务推理（目标态）：Qwen3 32B（Ollama）
+- 数值计算：`decimal`（标准库，结算金额必须用 Decimal，不用 float）
 
 未列出的依赖不要自行引入，需要时先和 Zhang 确认。
 

@@ -4,6 +4,9 @@
 
 - Python 为主语言，注释用中文
 - Bitable 字段名和类型从 `schema/schema.yaml` 读取，不硬编码
+- 结算金额用 `Decimal`，不用 `float`（避免浮点精度问题）
+- 金额保留 2 位小数，重量保留 3 位小数，品位保留原始精度
+- 舍入统一用 `ROUND_HALF_UP`（四舍五入），除非合同另有约定
 
 ## 开发循环（你独立完成，不等 Zhang）
 ```
@@ -59,11 +62,18 @@ python scripts/inspect_sdk.py im.v1
 ```
 tests/
 ├── fixtures/
-│   ├── event_payloads/    ← 飞书 WebSocket 事件 JSON（脱敏）
-│   ├── sample_images/      ← 测试用图片
-│   └── mock_responses/     ← API 返回值 mock
-├── test_api_*.py           ← 独立 API 验证脚本
-└── test_integration.py     ← 端到端集成测试
+│   ├── event_payloads/        ← 飞书 WebSocket 事件 JSON（脱敏）
+│   ├── sample_images/          ← 测试用图片
+│   ├── mock_responses/         ← API 返回值 mock
+│   └── mock_documents/         ← 业务场景 mock 数据
+│       └── scenario_01/        ← 固定计价，单元素 Cu
+│           ├── contract.yaml
+│           ├── weigh_tickets.yaml
+│           ├── assay_reports.yaml
+│           └── expected_cash_flows.yaml
+├── test_api_*.py               ← 独立 API 验证脚本
+├── test_m3a_models.py          ← M3A 模型验证
+└── test_integration.py         ← 端到端集成测试
 ```
 
 ### 常见替代方案
@@ -74,6 +84,7 @@ tests/
 | 让 Zhang 发图片测试 OCR | 独立脚本直接调用图片下载 + OCR，输入用 `tests/fixtures/sample_images/` |
 | 让 Zhang 看系统确认数据 | 脚本写入后立即读取，assert 匹配 |
 | 让 Zhang 确认 UI 渲染 | 脚本验证发送成功，渲染留给里程碑验收 |
+| 让 Zhang 手算验证结算金额 | 用 expected_cash_flows.yaml 做断言测试 |
 
 ## 反模式清单（遇到时立即停下来纠正）
 
