@@ -1,3 +1,59 @@
+assay_reports:
+  fields:
+  - field_id: fldAssayAuto
+    name: 化验编号
+    type: 1005
+  - field_id: fldAssaySampleId
+    name: 样号
+    type: 1
+  - field_id: fldAssayContract
+    name: 关联合同
+    type: 18
+  - field_id: fldAssayType
+    name: 化验类型
+    options:
+    - color: 0
+      id: optAssayFast
+      name: 快速摸底
+    - color: 1
+      id: optAssaySettle
+      name: 结算化验
+    type: 3
+  - field_id: fldAssayIsSettle
+    name: 是否结算化验单
+    type: 7
+  - field_id: fldAssayCu
+    name: Cu%
+    type: 2
+  - field_id: fldAssayAu
+    name: Au(g/t)
+    type: 2
+  - field_id: fldAssayAg
+    name: Ag(g/t)
+    type: 2
+  - field_id: fldAssayPb
+    name: Pb%
+    type: 2
+  - field_id: fldAssayZn
+    name: Zn%
+    type: 2
+  - field_id: fldAssayS
+    name: S%
+    type: 2
+  - field_id: fldAssayAs
+    name: As%
+    type: 2
+  - field_id: fldAssayH2O
+    name: H2O%
+    type: 2
+  - field_id: fldAssayDate
+    name: 化验日期
+    type: 5
+  - field_id: fldAssayLab
+    name: 化验机构
+    type: 1
+  name: 化验单
+  table_id: tblAssayReportsMock
 contracts:
   fields:
   - field_id: fld16duzs9

@@ -28,6 +28,8 @@ from feishu.cards import CardTemplate, create_card_template, parse_card_callback
 from feishu.bitable import BitableTable
 from ai.ocr import ocr_image
 from ai.weigh_ticket import parse_ocr_to_weigh_ticket, weigh_ticket_to_dict
+from ai.assay_report import parse_ocr_to_assay_report, assay_report_to_dict
+from ai.classify import classify_doc_type
 
 logger = logging.getLogger(__name__)
 
@@ -263,22 +265,39 @@ class MessageHandler:
             if not ocr_text:
                 return "❌ OCR 未识别到内容，请检查图片清晰度后重新发送"
 
-            # Step 3: 结构化解析
-            weigh_ticket = parse_ocr_to_weigh_ticket(ocr_text)
-            record_data = weigh_ticket_to_dict(weigh_ticket)
+            # Step 3: 图片分类（磅单 or 化验单）
+            try:
+                doc_type = classify_doc_type(ocr_text)
+            except Exception as classify_err:
+                logger.warning(f"图片分类失败，降级为磅单: {classify_err}")
+                doc_type = "weigh_ticket"
 
-            # Step 4: 生成确认卡片
+            logger.info(f"图片分类结果: doc_type={doc_type}, image_key={image_key}")
+
+            # Step 4a: 磅单路径
+            if doc_type == "weigh_ticket":
+                weigh_ticket = parse_ocr_to_weigh_ticket(ocr_text)
+                record_data = weigh_ticket_to_dict(weigh_ticket)
+                card_json = self.card_template.generate(
+                    table_name="weigh_tickets",
+                    record_data=record_data,
+                    title="磅单 OCR 结果确认",
+                )
+                return {"type": "card", "content": card_json}
+
+            # Step 4b: 化验单路径
+            assay_report = parse_ocr_to_assay_report(ocr_text)
+            record_data = assay_report_to_dict(assay_report)
             card_json = self.card_template.generate(
-                table_name="weigh_tickets",
+                table_name="assay_reports",
                 record_data=record_data,
-                title="磅单 OCR 结果确认",
+                title="化验单 OCR 结果确认",
             )
-
             return {"type": "card", "content": card_json}
 
         except Exception as e:
-            logger.exception(f"磅单识别失败: {e}")
-            return f"❌ 识别失败: {e}\n\n请检查图片是否为磅单，或尝试更清晰的照片。"
+            logger.exception(f"图片识别失败: {e}")
+            return f"❌ 识别失败: {e}\n\n请检查图片是否为磅单或化验单，或尝试更清晰的照片。"
 
         finally:
             os.unlink(temp_path)

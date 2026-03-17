@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 class Intent(Enum):
     """支持的意图类型"""
     WEIGH_TICKET = "weigh_ticket"  # 磅单录入
+    ASSAY_REPORT = "assay_report"  # 化验单录入
     QUERY_SUMMARY = "query_summary"  # 汇总查询
     UNKNOWN = "unknown"  # 未知
 
