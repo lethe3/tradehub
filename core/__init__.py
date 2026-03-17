@@ -1,5 +1,6 @@
-# Core 层 - 业务逻辑（意图路由、技能模块）
+# Core 层 - 业务逻辑（意图路由、技能模块、数据串联）
 
+from .linking import build_batch_view, match_by_sample_id
 from .dispatcher import (
     Dispatcher,
     Intent,
@@ -15,6 +16,10 @@ from .handlers import (
 )
 
 __all__ = [
+    # linking
+    "match_by_sample_id",
+    "build_batch_view",
+    # dispatcher
     "Dispatcher",
     "Intent",
     "Handler",
