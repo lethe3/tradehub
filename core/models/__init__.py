@@ -22,6 +22,14 @@ from .pricing import (
     PriceSourceType,
     UnitType,
 )
+from .settlement_item import (
+    PricingBasis,
+    PriceFormula,
+    PriceSource,
+    SettlementDirection,
+    SettlementItemRecord,
+    SettlementRowType,
+)
 
 __all__ = [
     # batch
@@ -43,4 +51,11 @@ __all__ = [
     "ImpurityDeductionTier",
     "ImpurityDeduction",
     "ContractPricing",
+    # settlement_item
+    "SettlementRowType",
+    "SettlementDirection",
+    "PricingBasis",
+    "PriceSource",
+    "PriceFormula",
+    "SettlementItemRecord",
 ]

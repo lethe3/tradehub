@@ -17,17 +17,17 @@ from pydantic import BaseModel, field_validator
 
 class ContractRecord(BaseModel):
     """合同表原始记录"""
-    contract_id: str                     # Bitable record ID
-    contract_number: str                 # 合同编号（原件编号）
-    direction: str                       # 采购 / 销售
-    commodity: str                       # 货品名称
-    counterparty: str                    # 交易对手
-    signing_date: Optional[date] = None  # 签订日期
+    contract_id: str                          # Bitable record ID
+    contract_number: str                      # 合同编号（原件编号）
+    direction: str                            # 采购 / 销售
+    commodity: Optional[str] = None          # 货品名称（已迁移至结算明细，保留兼容）
+    counterparty: str                         # 交易对手
+    signing_date: Optional[date] = None       # 签订日期
     # 阶段二扩展字段
-    tax_included: Optional[bool] = None      # 是否含税
-    freight_bearer: Optional[str] = None    # 运费承担方（我方/对方）
-    assay_fee_bearer: Optional[str] = None  # 化验费承担方
-    pricing_elements: list[str] = []        # 计价元素列表，如 ["Cu", "Au"]
+    tax_included: Optional[bool] = None       # 是否含税
+    freight_bearer: Optional[str] = None      # 运费承担方（我方/对方）
+    assay_fee_bearer: Optional[str] = None    # 化验费承担方
+    pricing_elements: list[str] = []          # 计价元素列表（已迁移至结算明细，保留兼容）
     settlement_ticket_rule: Optional[str] = None   # 结算磅单约定
     settlement_assay_rule: Optional[str] = None    # 结算化验单约定
 

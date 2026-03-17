@@ -24,11 +24,11 @@ from decimal import Decimal
 from typing import Optional
 
 from core import get_dispatcher, HandlerResult
-from core.fake_data import generate_fake_contract, generate_fake_weigh_tickets, generate_fake_assay_report
+from core.fake_data import generate_fake_contract, generate_fake_contract_pricing, generate_fake_weigh_tickets, generate_fake_assay_report
 from core.models.batch import AssayReportRecord, BatchUnit, BatchView, ContractRecord, WeighTicketRecord
-from core.models.cash_flow import CashFlowDirection, CashFlowRecord, CashFlowType, SettlementSummary
-from core.models.pricing import ContractPricing, FormulaType, PricingElement, UnitType
-from core.settlement import generate_cash_flows
+from core.models.pricing import ContractPricing
+from core.models.settlement_item import SettlementItemRecord
+from core.settlement import generate_settlement_items
 from feishu.bot import FeishuBot, ImageMessage, TextMessage
 from feishu.cards import CardTemplate, create_card_template, parse_card_callback
 from feishu.bitable import BitableTable
@@ -236,6 +236,7 @@ class MessageHandler:
         # 假数据流内存状态（最近一次生成的合同/磅单/化验单）
         self._last_contract_record_id: Optional[str] = None
         self._last_contract_data: Optional[dict] = None
+        self._last_contract_pricing: Optional[ContractPricing] = None
         self._last_weigh_tickets: list[dict] = []   # 含 _sample_id, _record_id
         self._last_assay_reports: list[dict] = []    # 含 _sample_id, _record_id
 
@@ -337,15 +338,16 @@ class MessageHandler:
             record_id = table.create(data)
             self._last_contract_record_id = record_id
             self._last_contract_data = data
+            self._last_contract_pricing = generate_fake_contract_pricing(record_id)
             self._last_weigh_tickets = []
             self._last_assay_reports = []
-            unit = data["单价单位"]
+            pe = self._last_contract_pricing.pricing_elements[0]
             url = table.record_url(record_id)
             return (
                 f"✅ 合同已录入，请点击链接核对：\n{url}\n\n"
                 f"  合同编号：{data['合同编号']}\n"
-                f"  货品：{data['货品名称']}  方向：{data['合同方向']}\n"
-                f"  计价：{data['单价']:,.0f} {unit}\n"
+                f"  方向：{data['合同方向']}\n"
+                f"  计价：Cu {float(pe.base_price):,.0f} {pe.unit.value}\n"
                 f"  化验费：{data['化验费']:,.0f} 元（{data['化验费承担方']}承担）"
             )
         except Exception as e:
@@ -395,39 +397,25 @@ class MessageHandler:
             return f"❌ 生成化验单失败：{e}"
 
     def _cmd_settlement(self) -> str | dict:
-        """用内存数据计算结算 → 返回结算卡片"""
+        """用内存数据计算结算 → 写入结算明细表 → 返回记录链接"""
         if not self._last_contract_data:
             return "⚠️ 请先依次发送「合同」→「磅单」→「化验单」，再触发结算"
+        if not self._last_contract_pricing:
+            return "⚠️ 缺少计价规则，请重新发送「合同」"
         if not self._last_weigh_tickets:
             return "⚠️ 缺少磅单数据，请先发送「磅单」"
         if not self._last_assay_reports:
             return "⚠️ 缺少化验单数据，请先发送「化验单」"
         try:
             cd = self._last_contract_data
+            contract_pricing = self._last_contract_pricing
+
             # 构建 ContractRecord（仅需 settlement 必要字段）
             contract_rec = ContractRecord(
                 contract_id=self._last_contract_record_id or "mock",
                 contract_number=cd["合同编号"],
                 direction=cd["合同方向"],
-                commodity=cd["货品名称"],
                 counterparty="MOCK对手方",
-            )
-
-            # 构建 ContractPricing
-            unit_map = {"元/吨": UnitType.CNY_PER_TON, "元/金属吨": UnitType.CNY_PER_METAL_TON}
-            unit_type = unit_map.get(cd["单价单位"], UnitType.CNY_PER_TON)
-            pe = PricingElement(
-                element=cd["计价元素"],
-                base_price=Decimal(str(cd["单价"])),
-                unit=unit_type,
-                formula_type=FormulaType.FIXED_PRICE,
-                grade_deduction=Decimal(str(cd.get("品位扣减", 0))),
-            )
-            contract_pricing = ContractPricing(
-                contract_id=self._last_contract_record_id or "mock",
-                contract_number=cd["合同编号"],
-                pricing_elements=[pe],
-                assay_fee_total=Decimal(str(cd["化验费"])) if cd.get("化验费承担方") == "我方" else None,
             )
 
             # 构建 BatchUnit 列表（将 assay 与 weigh 按 sample_id 匹配）
@@ -470,34 +458,41 @@ class MessageHandler:
                 ))
 
             batch_view = BatchView(contract=contract_rec, batch_units=batch_units)
-            cash_flows = generate_cash_flows(batch_view, contract_pricing)
+            items = generate_settlement_items(batch_view, contract_pricing)
 
-            # 写入资金流水表，返回各条记录链接
-            cf_table = BitableTable(table_name="cash_flows")
+            # 写入结算明细表，返回各条记录链接
+            si_table = BitableTable(table_name="settlement_items")
             links = []
-            for cf in cash_flows:
+            for item in items:
                 row = {
-                    "关联合同": cf.contract_id,
-                    "合同编号": cd["合同编号"],
-                    "流水类型": cf.flow_type.value,
-                    "方向": cf.direction.value,
-                    "计价元素": cf.element or "",
-                    "样号": cf.sample_id or "",
-                    "干重": float(cf.dry_weight) if cf.dry_weight is not None else None,
-                    "金属量": float(cf.metal_quantity) if cf.metal_quantity is not None else None,
-                    "单价": float(cf.unit_price) if cf.unit_price is not None else None,
-                    "单价单位": cf.unit or "",
-                    "金额": float(cf.amount),
-                    "备注": cf.note or "",
+                    "关联合同": item.contract_id,
+                    "样号": item.sample_id or "",
+                    "行类型": item.row_type.value,
+                    "方向": item.direction.value,
+                    "计价元素": item.element or "",
+                    "计价基准": item.pricing_basis.value if item.pricing_basis else "",
+                    "基准价来源": item.price_source.value,
+                    "单价公式": item.price_formula.value if item.price_formula else "",
+                    "湿重(吨)": float(item.wet_weight) if item.wet_weight is not None else None,
+                    "H2O(%)": float(item.h2o_pct) if item.h2o_pct is not None else None,
+                    "干重(吨)": float(item.dry_weight) if item.dry_weight is not None else None,
+                    "化验品位": float(item.assay_grade) if item.assay_grade is not None else None,
+                    "品位扣减": float(item.grade_deduction_val) if item.grade_deduction_val is not None else None,
+                    "有效品位": float(item.effective_grade) if item.effective_grade is not None else None,
+                    "金属量(吨)": float(item.metal_quantity) if item.metal_quantity is not None else None,
+                    "单价": float(item.unit_price) if item.unit_price is not None else None,
+                    "单价单位": item.unit or "",
+                    "金额": float(item.amount),
+                    "备注": item.note or "",
                 }
-                record_id = cf_table.create(row)
-                url = cf_table.record_url(record_id)
-                links.append(f"  {cf.flow_type.value}（{cf.direction.value} {cf.amount:,.2f} 元）\n  {url}")
+                record_id = si_table.create(row)
+                url = si_table.record_url(record_id)
+                links.append(f"  {item.row_type.value}（{item.direction.value} {item.amount:,.2f} 元）{' ' + item.element if item.element else ''}\n  {url}")
 
-            total_income = sum(c.amount for c in cash_flows if c.direction.value == "收入")
-            total_expense = sum(c.amount for c in cash_flows if c.direction.value == "支出")
+            total_income = sum(i.amount for i in items if i.direction.value == "收")
+            total_expense = sum(i.amount for i in items if i.direction.value == "付")
             header = (
-                f"✅ 结算单已录入（{len(cash_flows)} 条流水），请点击链接逐条核对：\n"
+                f"✅ 结算明细已录入（{len(items)} 条），请点击链接逐条核对：\n"
                 f"  应收合计：{total_income:,.2f} 元  应付合计：{total_expense:,.2f} 元\n"
             )
             return header + "\n".join(links)

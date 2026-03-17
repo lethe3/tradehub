@@ -48,6 +48,9 @@ assay_reports:
   name: 化验单
   table_id: tblIH73zq4sdzyVu
 cash_flows:
+  # 资金流水表：仅记录实际收付款项（预付款/结算款/运费等）
+  # 计算明细已迁移至 settlement_items 表
+  # 注意：Bitable 中的实际字段需通过 setup_tables.py 重建后更新此处 field_id
   fields:
   - field_id: fldJeVrzo2
     name: 多行文本
@@ -55,41 +58,92 @@ cash_flows:
   - field_id: fldyfHMC6k
     name: 关联合同
     type: 1
-  - field_id: fldXg9PjLZ
-    name: 合同编号
-    type: 1
   - field_id: fldGZ8GYHb
-    name: 流水类型
+    name: 款项类型
     type: 1
   - field_id: fldnc0VBAs
     name: 方向
     type: 1
-  - field_id: fldkcbOu9m
-    name: 计价元素
-    type: 1
-  - field_id: fldIeTm2hn
-    name: 样号
-    type: 1
-  - field_id: flda6kx7da
-    name: 干重
-    type: 2
-  - field_id: fldVzdOWCM
-    name: 金属量
-    type: 2
-  - field_id: fldfTgZsJi
-    name: 单价
-    type: 2
-  - field_id: fld2URB4Jk
-    name: 单价单位
-    type: 1
   - field_id: fld0pqQk5y
     name: 金额
     type: 2
+  - field_id: fldJXxdQgX
+    name: 日期
+    type: 5
   - field_id: fldGlV2v8d
-    name: 备注
+    name: 摘要
     type: 1
   name: 资金流水
   table_id: tblPWyG1hmvlm8oQ
+settlement_items:
+  # 结算明细表：每行 = 一条磅单 × 一个计价元素（或一条杂质扣款）
+  # table_id 和 field_id 在运行 setup_tables.py 建表后更新
+  fields:
+  - field_id: fld_si_auto_no
+    name: 结算编号
+    type: 1005
+  - field_id: fld_si_contract
+    name: 关联合同
+    type: 1
+  - field_id: fld_si_ticket
+    name: 关联磅单
+    type: 1
+  - field_id: fld_si_sample
+    name: 样号
+    type: 1
+  - field_id: fld_si_row_type
+    name: 行类型
+    type: 3
+  - field_id: fld_si_direction
+    name: 方向
+    type: 3
+  - field_id: fld_si_element
+    name: 计价元素
+    type: 3
+  - field_id: fld_si_basis
+    name: 计价基准
+    type: 3
+  - field_id: fld_si_source
+    name: 基准价来源
+    type: 3
+  - field_id: fld_si_formula
+    name: 单价公式
+    type: 3
+  - field_id: fld_si_wet
+    name: 湿重(吨)
+    type: 2
+  - field_id: fld_si_h2o
+    name: H2O(%)
+    type: 2
+  - field_id: fld_si_dry
+    name: 干重(吨)
+    type: 2
+  - field_id: fld_si_assay_grade
+    name: 化验品位
+    type: 2
+  - field_id: fld_si_grade_deduction
+    name: 品位扣减
+    type: 2
+  - field_id: fld_si_eff_grade
+    name: 有效品位
+    type: 2
+  - field_id: fld_si_metal_qty
+    name: 金属量(吨)
+    type: 2
+  - field_id: fld_si_price
+    name: 单价
+    type: 2
+  - field_id: fld_si_unit
+    name: 单价单位
+    type: 3
+  - field_id: fld_si_amount
+    name: 金额
+    type: 2
+  - field_id: fld_si_note
+    name: 备注
+    type: 1
+  name: 结算明细
+  table_id: PENDING_RUN_SETUP_TABLES
 contracts:
   fields:
   - field_id: fld16duzs9
@@ -137,21 +191,6 @@ contracts:
   - field_id: fld2WRdug6
     name: 签订日期
     type: 5
-  - field_id: fldM0K7BjD
-    name: 货品名称
-    type: 1
-  - field_id: fldXvgdPuP
-    name: 计价元素
-    type: 1
-  - field_id: fldQDBCVwa
-    name: 单价
-    type: 2
-  - field_id: fldBTJlC4U
-    name: 单价单位
-    type: 1
-  - field_id: fldFHDUfbX
-    name: 品位扣减
-    type: 2
   - field_id: fldnVWHnoH
     name: 化验费
     type: 2

@@ -8,7 +8,10 @@ from __future__ import annotations
 import random
 import string
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any
+
+from core.models.pricing import ContractPricing, FormulaType, PricingElement, PriceSourceType, UnitType
 
 
 def _today_ms() -> int:
@@ -23,25 +26,44 @@ def _rand_suffix(n: int = 4) -> str:
 def generate_fake_contract() -> dict[str, Any]:
     """生成一条假合同记录（字段名 = Bitable 列名）。
 
-    固定计价：元/吨 或 元/金属吨（随机选一种）。
+    仅包含合同本体字段（不含计价细节，计价规则由 generate_fake_contract_pricing 单独生成）。
     """
-    unit_types = ["元/吨", "元/金属吨"]
-    unit = random.choice(unit_types)
     contract_no = f"HT-MOCK-{date.today().strftime('%Y%m%d')}-{_rand_suffix()}"
     return {
         "合同编号": contract_no,
         "我方主体": "我司A",
         "交易对手": "测试供应商",
         "签订日期": _today_ms(),
-        "货品名称": "铜精矿",
         "合同方向": "采购",
-        "计价元素": "Cu",
-        "单价": round(random.uniform(55000, 75000), 0),
-        "单价单位": unit,
-        "品位扣减": 1.0 if unit == "元/金属吨" else 0.0,
         "化验费": 2000.0,
         "化验费承担方": "我方",
     }
+
+
+def generate_fake_contract_pricing(contract_id: str) -> ContractPricing:
+    """生成假合同计价规则（用于结算测试，不写入 Bitable）。
+
+    Args:
+        contract_id: 合同 Bitable record_id
+    """
+    unit_types = [UnitType.CNY_PER_TON, UnitType.CNY_PER_METAL_TON]
+    unit_type = random.choice(unit_types)
+    base_price = Decimal(str(round(random.uniform(55000, 75000), 0)))
+    grade_deduction = Decimal("1.0") if unit_type == UnitType.CNY_PER_METAL_TON else Decimal("0")
+
+    pe = PricingElement(
+        element="Cu",
+        price_source_type=PriceSourceType.FIXED,
+        base_price=base_price,
+        unit=unit_type,
+        formula_type=FormulaType.FIXED_PRICE,
+        grade_deduction=grade_deduction,
+    )
+    return ContractPricing(
+        contract_id=contract_id,
+        pricing_elements=[pe],
+        assay_fee_total=Decimal("2000"),  # 化验费我方承担
+    )
 
 
 def generate_fake_weigh_tickets(contract_record_id: str, count: int = 2) -> list[dict[str, Any]]:

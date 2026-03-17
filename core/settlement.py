@@ -19,6 +19,14 @@ from decimal import ROUND_HALF_UP, Decimal
 from .models.batch import BatchView
 from .models.cash_flow import CashFlowDirection, CashFlowRecord, CashFlowType
 from .models.pricing import ContractPricing, FormulaType, ImpurityDeductionTier, PriceSourceType, UnitType
+from .models.settlement_item import (
+    PricingBasis,
+    PriceFormula,
+    PriceSource,
+    SettlementDirection,
+    SettlementItemRecord,
+    SettlementRowType,
+)
 
 
 # ── 品位字段映射：元素名 → AssayReportRecord 对应属性名 ────────────
@@ -259,3 +267,203 @@ def generate_cash_flows(
         ))
 
     return records
+
+
+# ══════════════════════════════════════════════════════════════
+# 新结算明细函数（输出 SettlementItemRecord，含完整计价元数据）
+# ══════════════════════════════════════════════════════════════
+
+def generate_settlement_items(
+    batch_view: BatchView,
+    contract_pricing: ContractPricing,
+) -> list[SettlementItemRecord]:
+    """
+    遍历 batch_units × pricing_elements，生成 SettlementItemRecord 列表。
+
+    每条记录内嵌完整计价参数（计价基准、基准价来源、单价公式）。
+    杂质扣款行：备注字段记录档位说明。
+
+    Args:
+        batch_view:        M3C 串联输出的批次视图
+        contract_pricing:  合同计价规则
+
+    Returns:
+        SettlementItemRecord 列表，先元素货款（按 batch_unit 顺序），后杂质扣款
+    """
+    contract = batch_view.contract
+    direction = (
+        SettlementDirection.EXPENSE
+        if contract.direction == "采购"
+        else SettlementDirection.INCOME
+    )
+
+    items: list[SettlementItemRecord] = []
+
+    for unit in batch_view.batch_units:
+        assay = unit.assay_report
+        wet_weight = unit.total_wet_weight
+
+        if assay.h2o_pct is None:
+            raise ValueError(
+                f"样号 {unit.sample_id} 化验单缺少 h2o_pct，无法计算干重"
+            )
+
+        dry_weight = calc_dry_weight(wet_weight, assay.h2o_pct)
+
+        for pe in contract_pricing.pricing_elements:
+            if pe.price_source_type != PriceSourceType.FIXED:
+                raise NotImplementedError(
+                    f"仅支持 fixed 基准价，元素 {pe.element} 使用了 {pe.price_source_type}"
+                )
+
+            if pe.formula_type == FormulaType.FIXED_PRICE:
+                if pe.unit == UnitType.CNY_PER_TON:
+                    payment = (wet_weight * pe.base_price).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                    items.append(SettlementItemRecord(
+                        contract_id=contract.contract_id,
+                        sample_id=unit.sample_id,
+                        row_type=SettlementRowType.ELEMENT_PAYMENT,
+                        direction=direction,
+                        element=pe.element,
+                        pricing_basis=PricingBasis.WET_WEIGHT,
+                        price_source=PriceSource.FIXED,
+                        price_formula=PriceFormula.FIXED_PRICE,
+                        wet_weight=wet_weight,
+                        h2o_pct=assay.h2o_pct,
+                        unit_price=pe.base_price,
+                        unit=pe.unit.value,
+                        amount=payment,
+                    ))
+
+                elif pe.unit == UnitType.CNY_PER_DRY_TON:
+                    payment = (dry_weight * pe.base_price).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                    items.append(SettlementItemRecord(
+                        contract_id=contract.contract_id,
+                        sample_id=unit.sample_id,
+                        row_type=SettlementRowType.ELEMENT_PAYMENT,
+                        direction=direction,
+                        element=pe.element,
+                        pricing_basis=PricingBasis.DRY_WEIGHT,
+                        price_source=PriceSource.FIXED,
+                        price_formula=PriceFormula.FIXED_PRICE,
+                        wet_weight=wet_weight,
+                        h2o_pct=assay.h2o_pct,
+                        dry_weight=dry_weight,
+                        unit_price=pe.base_price,
+                        unit=pe.unit.value,
+                        amount=payment,
+                    ))
+
+                elif pe.unit == UnitType.CNY_PER_METAL_TON:
+                    attr = _ELEMENT_ATTR.get(pe.element)
+                    if attr is None:
+                        raise ValueError(f"未知计价元素：{pe.element}")
+                    assay_grade: Decimal | None = getattr(assay, attr, None)
+                    if assay_grade is None:
+                        raise ValueError(
+                            f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
+                        )
+                    metal_qty = calc_metal_quantity(dry_weight, assay_grade, Decimal("0"))
+                    payment = calc_element_payment(metal_qty, pe.base_price)
+                    items.append(SettlementItemRecord(
+                        contract_id=contract.contract_id,
+                        sample_id=unit.sample_id,
+                        row_type=SettlementRowType.ELEMENT_PAYMENT,
+                        direction=direction,
+                        element=pe.element,
+                        pricing_basis=PricingBasis.METAL_QUANTITY,
+                        price_source=PriceSource.FIXED,
+                        price_formula=PriceFormula.FIXED_PRICE,
+                        wet_weight=wet_weight,
+                        h2o_pct=assay.h2o_pct,
+                        dry_weight=dry_weight,
+                        assay_grade=assay_grade,
+                        grade_deduction_val=Decimal("0"),
+                        effective_grade=assay_grade,
+                        metal_quantity=metal_qty,
+                        unit_price=pe.base_price,
+                        unit=pe.unit.value,
+                        amount=payment,
+                    ))
+                else:
+                    raise NotImplementedError(
+                        f"FIXED_PRICE 不支持单位 {pe.unit}"
+                    )
+
+            elif pe.formula_type == FormulaType.GRADE_DEDUCTION:
+                attr = _ELEMENT_ATTR.get(pe.element)
+                if attr is None:
+                    raise ValueError(f"未知计价元素：{pe.element}")
+                assay_grade = getattr(assay, attr, None)
+                if assay_grade is None:
+                    raise ValueError(
+                        f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
+                    )
+                eff_grade = assay_grade - pe.grade_deduction
+                metal_qty = calc_metal_quantity(dry_weight, assay_grade, pe.grade_deduction)
+                payment = calc_element_payment(metal_qty, pe.base_price)
+                items.append(SettlementItemRecord(
+                    contract_id=contract.contract_id,
+                    sample_id=unit.sample_id,
+                    row_type=SettlementRowType.ELEMENT_PAYMENT,
+                    direction=direction,
+                    element=pe.element,
+                    pricing_basis=PricingBasis.METAL_QUANTITY,
+                    price_source=PriceSource.FIXED,
+                    price_formula=PriceFormula.GRADE_DEDUCTION,
+                    wet_weight=wet_weight,
+                    h2o_pct=assay.h2o_pct,
+                    dry_weight=dry_weight,
+                    assay_grade=assay_grade,
+                    grade_deduction_val=pe.grade_deduction,
+                    effective_grade=eff_grade,
+                    metal_quantity=metal_qty,
+                    unit_price=pe.base_price,
+                    unit=pe.unit.value,
+                    amount=payment,
+                ))
+
+            else:
+                raise NotImplementedError(
+                    f"不支持公式类型 {pe.formula_type}，元素 {pe.element}"
+                )
+
+    # 杂质扣款
+    for imp in contract_pricing.impurity_deductions:
+        attr = _ELEMENT_ATTR.get(imp.element)
+        if attr is None:
+            raise ValueError(f"未知杂质元素：{imp.element}")
+        for unit in batch_view.batch_units:
+            grade: Decimal | None = getattr(unit.assay_report, attr, None)
+            if grade is None:
+                continue
+            tier = find_impurity_tier(grade, imp.tiers)
+            if tier is None:
+                continue
+            amount = calc_impurity_amount(unit.total_wet_weight, tier.rate)
+            # 档位说明
+            if tier.upper is None:
+                tier_note = f"{imp.element} ≥{tier.lower}% → {tier.rate}元/吨"
+            else:
+                tier_note = f"{imp.element} [{tier.lower}%, {tier.upper}%) → {tier.rate}元/吨"
+            items.append(SettlementItemRecord(
+                contract_id=contract.contract_id,
+                sample_id=unit.sample_id,
+                row_type=SettlementRowType.IMPURITY_DEDUCTION,
+                direction=SettlementDirection.EXPENSE,
+                element=imp.element,
+                pricing_basis=PricingBasis.WET_WEIGHT,
+                price_source=PriceSource.FIXED,
+                wet_weight=unit.total_wet_weight,
+                assay_grade=grade,
+                unit_price=tier.rate,
+                unit="元/吨",
+                amount=amount,
+                note=tier_note,
+            ))
+
+    return items

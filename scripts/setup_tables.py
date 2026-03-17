@@ -72,14 +72,9 @@ def create_table_if_missing(app: BitableApp, name: str) -> str:
 def main():
     app = BitableApp()
 
-    # ── 1. 合同表：扩展字段 ────────────────────────────────────
-    print("\n[1] 给合同表添加扩展字段 ...")
+    # ── 1. 合同表：保留化验费字段，移除已迁移的计价字段 ─────────
+    print("\n[1] 合同表：确认化验费字段存在 ...")
     add_fields_if_missing(CONTRACTS_TABLE_ID, [
-        FieldConfig("货品名称",     FieldType.TEXT),       # 铜精矿/废铜/铅精矿
-        FieldConfig("计价元素",     FieldType.TEXT),       # Cu / Au / Ag
-        FieldConfig("单价",         FieldType.NUMBER),     # 数值，如 65000
-        FieldConfig("单价单位",     FieldType.TEXT),       # 元/吨 或 元/金属吨
-        FieldConfig("品位扣减",     FieldType.NUMBER),     # 百分点，如 1.0
         FieldConfig("化验费",       FieldType.NUMBER),     # 总额，如 2000
         FieldConfig("化验费承担方", FieldType.TEXT),       # 我方/对方/均摊
     ])
@@ -116,30 +111,53 @@ def main():
     ])
     print_fields(assay_table_id, "化验单")
 
-    # ── 4. 资金流水表：新建 ────────────────────────────────────
-    print("\n[4] 创建资金流水表 ...")
+    # ── 4. 资金流水表：精简为实际收付记录 ─────────────────────────
+    print("\n[4] 创建/更新资金流水表（仅实际收付字段）...")
     cf_table_id = create_table_if_missing(app, "资金流水")
     add_fields_if_missing(cf_table_id, [
         FieldConfig("关联合同",   FieldType.TEXT),    # 合同 record_id
-        FieldConfig("合同编号",   FieldType.TEXT),    # 便于展示
-        FieldConfig("流水类型",   FieldType.TEXT),    # 元素货款/化验费/…
-        FieldConfig("方向",       FieldType.TEXT),    # 收入/支出
-        FieldConfig("计价元素",   FieldType.TEXT),    # Cu/Au/Ag
-        FieldConfig("样号",       FieldType.TEXT),
-        FieldConfig("干重",       FieldType.NUMBER),
-        FieldConfig("金属量",     FieldType.NUMBER),
-        FieldConfig("单价",       FieldType.NUMBER),
-        FieldConfig("单价单位",   FieldType.TEXT),
-        FieldConfig("金额",       FieldType.NUMBER),
-        FieldConfig("备注",       FieldType.TEXT),
+        FieldConfig("款项类型",   FieldType.TEXT),    # 预付款/结算款/运费/化验费/…
+        FieldConfig("方向",       FieldType.TEXT),    # 收/付
+        FieldConfig("金额",       FieldType.NUMBER),  # 实际金额
+        FieldConfig("日期",       FieldType.DATE),    # 实际收付日期
+        FieldConfig("摘要",       FieldType.TEXT),    # 银行摘要或备注
     ])
     print_fields(cf_table_id, "资金流水")
 
-    # ── 5. 汇总输出（复制到 .env 和 schema.yaml）─────────────
+    # ── 5. 结算明细表：新建 ────────────────────────────────────
+    print("\n[5] 创建结算明细表 ...")
+    si_table_id = create_table_if_missing(app, "结算明细")
+    add_fields_if_missing(si_table_id, [
+        FieldConfig("关联合同",     FieldType.TEXT),    # 合同 record_id
+        FieldConfig("关联磅单",     FieldType.TEXT),    # 磅单 record_id
+        FieldConfig("样号",         FieldType.TEXT),    # 与磅单/化验单串联
+        FieldConfig("行类型",       FieldType.TEXT),    # 元素货款 / 杂质扣款
+        FieldConfig("方向",         FieldType.TEXT),    # 收 / 付
+        FieldConfig("计价元素",     FieldType.TEXT),    # Cu / Au / Ag / As / S
+        FieldConfig("计价基准",     FieldType.TEXT),    # 湿重 / 干重 / 金属量
+        FieldConfig("基准价来源",   FieldType.TEXT),    # 固定 / 均价 / 点价
+        FieldConfig("单价公式",     FieldType.TEXT),    # 固定单价 / 品位扣减 / 系数法
+        FieldConfig("湿重(吨)",     FieldType.NUMBER),
+        FieldConfig("H2O(%)",       FieldType.NUMBER),
+        FieldConfig("干重(吨)",     FieldType.NUMBER),
+        FieldConfig("化验品位",     FieldType.NUMBER),
+        FieldConfig("品位扣减",     FieldType.NUMBER),
+        FieldConfig("有效品位",     FieldType.NUMBER),
+        FieldConfig("金属量(吨)",   FieldType.NUMBER),
+        FieldConfig("单价",         FieldType.NUMBER),
+        FieldConfig("单价单位",     FieldType.TEXT),    # 元/吨 / 元/干吨 / 元/金属吨
+        FieldConfig("金额",         FieldType.NUMBER),
+        FieldConfig("备注",         FieldType.TEXT),    # 杂质档位说明等
+    ])
+    print_fields(si_table_id, "结算明细")
+
+    # ── 6. 汇总输出（复制到 schema.yaml）─────────────────────
     print(f"\n{'='*60}")
-    print("请将以下 table_id 写入 .env：")
+    print("请将以下 table_id 写入 .env 和 schema/schema.yaml：")
     print(f"  FEISHU_BITABLE_ASSAY_TABLE_ID={assay_table_id}")
     print(f"  FEISHU_BITABLE_CASHFLOW_TABLE_ID={cf_table_id}")
+    print(f"  结算明细表 table_id={si_table_id}")
+    print("\n⚠️  请将结算明细表 table_id 更新至 schema/schema.yaml 的 settlement_items.table_id")
 
 
 if __name__ == "__main__":
