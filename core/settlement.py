@@ -2,10 +2,16 @@
 M3D-1：结算计算引擎（固定计价）
 
 核心函数：
-  calc_dry_weight()        — 干重 = 湿重 × (1 - H2O%)，保留 4dp
-  calc_metal_quantity()    — 金属量 = 干重 × 有效品位，保留 3dp
-  calc_element_payment()   — 货款 = 金属量 × 单价，保留 2dp
-  generate_cash_flows()    — BatchView + ContractPricing → list[CashFlowRecord]
+  calc_dry_weight()          — 干重 = 湿重 × (1 - H2O%)，保留 4dp
+  calc_metal_quantity()      — 金属量 = 干重 × 有效品位，保留 3dp
+  calc_element_payment()     — 货款 = 金属量 × 单价，保留 2dp
+  generate_cash_flows()      — BatchView + ContractPricing → list[CashFlowRecord]（旧版，仅测试使用）
+  generate_settlement_items()— BatchView + ContractPricing → list[SettlementItemRecord]（新版，含完整计价元数据）
+
+【注意】generate_cash_flows 与 generate_settlement_items 计算逻辑重复。
+  generate_settlement_items 是当前生产路径；generate_cash_flows 仅存量测试使用，
+  不支持 CNY_PER_DRY_TON 且不输出化验费行（与 generate_settlement_items 的差异）。
+  TODO：待 SettlementItemRecord 稳定后，迁移测试并删除 generate_cash_flows。
 
 设计原则：
   - 纯函数，不 import feishu/ 或 ai/

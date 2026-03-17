@@ -3,8 +3,12 @@
 """
 
 import json
+import time
 from typing import Callable, Optional, Any
 from lark_oapi import Client
+
+# Token 缓存有效期（秒）：飞书 tenant_access_token 有效 2 小时，留 10 分钟余量
+_TOKEN_TTL = 6600
 
 
 class FeishuBot:
@@ -25,6 +29,28 @@ class FeishuBot:
 
         # 消息处理器
         self._message_handler: Optional[Callable] = None
+
+        # Token 缓存
+        self._token: Optional[str] = None
+        self._token_expires: float = 0.0
+
+    def _get_token(self) -> str:
+        """获取 tenant_access_token（带 TTL 缓存，有效期内不重复请求）"""
+        if self._token and time.time() < self._token_expires:
+            return self._token
+
+        import requests
+        resp = requests.post(
+            'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
+            json={"app_id": self.app_id, "app_secret": self.app_secret},
+            timeout=10,
+        )
+        data = resp.json()
+        if data.get('code') != 0:
+            raise RuntimeError(f"获取飞书 token 失败: {data.get('msg')}")
+        self._token = data['tenant_access_token']
+        self._token_expires = time.time() + _TOKEN_TTL
+        return self._token
 
     def set_message_handler(self, handler: Callable):
         """设置消息处理器"""
@@ -104,16 +130,7 @@ class FeishuBot:
         """
         import requests
 
-        # 获取 token
-        token_resp = requests.post(
-            'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
-            json={"app_id": self.app_id, "app_secret": self.app_secret}
-        )
-        token_data = token_resp.json()
-        if token_data.get('code') != 0:
-            return {"code": token_data.get('code'), "msg": token_data.get('msg')}
-
-        token = token_data.get('tenant_access_token')
+        token = self._get_token()
 
         # 构造消息内容
         if msg_type == "text":
@@ -129,8 +146,9 @@ class FeishuBot:
             json={
                 'receive_id': receive_id,
                 'msg_type': msg_type,
-                'content': content_json
-            }
+                'content': content_json,
+            },
+            timeout=10,
         )
         data = resp.json()
         if data.get('code') == 0:
@@ -142,16 +160,7 @@ class FeishuBot:
         """发送卡片消息"""
         import requests
 
-        # 获取 token
-        token_resp = requests.post(
-            'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
-            json={"app_id": self.app_id, "app_secret": self.app_secret}
-        )
-        token_data = token_resp.json()
-        if token_data.get('code') != 0:
-            return {"code": token_data.get('code'), "msg": token_data.get('msg')}
-
-        token = token_data.get('tenant_access_token')
+        token = self._get_token()
 
         # 飞书 API：content 需要双重 JSON 序列化
         # 1. 先把 card_json 字符串解析为 dict
@@ -169,7 +178,8 @@ class FeishuBot:
                 'receive_id': receive_id,
                 'msg_type': 'interactive',
                 'content': json.dumps(card_dict, ensure_ascii=False),
-            }, ensure_ascii=False)
+            }, ensure_ascii=False),
+            timeout=10,
         )
         data = resp.json()
         if data.get('code') == 0:
@@ -193,17 +203,7 @@ class FeishuBot:
         """下载图片 - 使用 message_resource API"""
         import requests
 
-        # 获取 token
-        token_resp = requests.post(
-            'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
-            json={"app_id": self.app_id, "app_secret": self.app_secret}
-        )
-        token_data = token_resp.json()
-        if token_data.get('code') != 0:
-            print(f"获取 token 失败: {token_data}")
-            return None
-
-        token = token_data.get('tenant_access_token')
+        token = self._get_token()
 
         # 优先使用 message_resource API（通过 message_id 下载）
         if message_id and image_key:
@@ -223,7 +223,8 @@ class FeishuBot:
         # 注意：消息中的图片 key 是临时的，可能已过期
         resp = requests.get(
             f'https://open.feishu.cn/open-apis/im/v1/images/{image_key}/content',
-            headers={'Authorization': f'Bearer {token}'}
+            headers={'Authorization': f'Bearer {token}'},
+            timeout=30,
         )
 
         if resp.status_code == 200:

@@ -39,8 +39,7 @@ class FieldType(IntEnum):
     USER = 10
     DEPARTMENT = 11
     PHONE = 13
-    URL = 15
-    EMAIL = 15  # 邮箱是 type=1 + ui_type=Email，但保留兼容
+    URL = 15  # 邮箱是 type=1 + ui_type=Email，无独立类型编号
     ATTACHMENT = 17
     SINGLE_LINK = 18
     LOOKUP = 19

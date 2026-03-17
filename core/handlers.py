@@ -10,56 +10,12 @@ from .dispatcher import Handler, HandlerResult, Intent, register_handler
 
 
 # === 汇总查询函数 ===
-
-def create_query_summary_func():
-    """
-    创建汇总查询函数（延迟导入避免循环依赖）
-
-    Returns:
-        查询函数，接收 message，返回汇总数据 dict
-    """
-    from feishu.bitable import BitableTable
-
-    def query_summary(message: Any) -> dict:
-        """查询磅单汇总数据"""
-        # 查询磅单表
-        table = BitableTable(table_name="weigh_tickets")
-        records, _ = table.list(page_size=100)
-
-        # 统计
-        total_count = len(records)
-        total_weight = 0.0
-
-        for record in records:
-            # 净重字段
-            weight = record.get("净重(吨)", 0)
-            if weight is None:
-                weight = 0
-            try:
-                total_weight += float(weight)
-            except (ValueError, TypeError):
-                pass
-
-        return {
-            "total_count": total_count,
-            "total_weight": total_weight,
-            "records": records[:5],  # 返回前5条示例
-        }
-
-    return query_summary
-
-
-# === 创建全局查询函数 ===
-
-_query_summary_func = None
-
+# 查询实现在 feishu/ 层（feishu.bitable 依赖不可进入 core/）。
+# 如需真实查询，在 feishu/ 层创建查询函数并通过 register_handlers(query_func=...) 注入。
 
 def get_query_summary_func():
-    """获取汇总查询函数（延迟创建）"""
-    global _query_summary_func
-    if _query_summary_func is None:
-        _query_summary_func = create_query_summary_func()
-    return _query_summary_func
+    """返回 None；真实查询函数由 feishu/ 层在启动时注入"""
+    return None
 
 
 class WeighTicketHandler(Handler):

@@ -101,7 +101,7 @@ class EventRouter:
         except Exception as e:
             logger.exception(f"处理消息失败: {e}")
             if open_id:
-                self.bot.send_message(open_id, f"❌ 处理失败，请稍后重试。如持续出现请联系管理员。\n错误信息: {e}")
+                self.bot.send_message(open_id, "❌ 处理失败，请稍后重试。如持续出现请联系管理员。")
 
     def handle_card_action(self, event: dict):
         """
@@ -133,11 +133,11 @@ class EventRouter:
         except ValueError as e:
             logger.error(f"解析卡片回调失败: {e}")
             if open_id:
-                self.bot.send_message(open_id, f"❌ 回调解析失败: {e}")
+                self.bot.send_message(open_id, "❌ 回调数据格式有误，请联系管理员。")
         except Exception as e:
             logger.exception(f"处理卡片回调失败: {e}")
             if open_id:
-                self.bot.send_message(open_id, f"❌ 操作失败: {e}")
+                self.bot.send_message(open_id, "❌ 操作失败，请稍后重试。")
 
     # ==================== 内部方法 ====================
 

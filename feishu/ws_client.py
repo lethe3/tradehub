@@ -17,6 +17,7 @@
 
 import logging
 import os
+from collections import deque
 from typing import Callable, Optional
 
 from lark_oapi.core.enum import LogLevel
@@ -54,7 +55,8 @@ class WebSocketBot:
         self._verification_token = verification_token
         self._encrypt_key = encrypt_key
         self._ws_client: Optional[LarkClient] = None
-        self._processed_messages: set[str] = set()
+        # 去重缓存：maxlen=1000，自动淘汰旧条目，避免长期运行内存泄漏
+        self._processed_messages: deque[str] = deque(maxlen=1000)
 
     def start(self):
         """启动 WebSocket 连接"""
@@ -127,7 +129,7 @@ class WebSocketBot:
                 logger.debug(f"跳过重复消息: {message_id}")
                 return
             if message_id:
-                self._processed_messages.add(message_id)
+                self._processed_messages.append(message_id)
 
             logger.info(f"收到消息: type={event_data.get('msg_type')}, message_id={message_id}")
             self._on_message(event_data)
