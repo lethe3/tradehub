@@ -1,0 +1,41 @@
+# 场景二：固定计价，单元素 Cu + As 杂质扣款两档阶梯（铜精矿采购）
+
+contract_id: "mock-contract-002"
+contract_number: "HT-2026-002"
+direction: "采购"
+commodity: "铜精矿"
+counterparty: "某铜矿供应商B"
+signing_date: "2026-01-10"
+tax_included: false
+freight_bearer: "对方"
+assay_fee_bearer: "对方"
+pricing_elements: ["Cu"]
+settlement_ticket_rule: "收货方磅单"
+settlement_assay_rule: "双方平均化验"
+
+# 计价规则
+pricing:
+  dry_weight_formula: "wet * (1 - h2o)"
+  pricing_elements:
+    - element: "Cu"
+      price_source_type: "fixed"
+      base_price: 65000
+      unit: "元/金属吨"
+      formula_type: "grade_deduction"
+      grade_deduction: 1.0
+
+  impurity_deductions:
+    - element: "As"
+      tiers:
+        # [0.3%, 0.5%)  → 20 元/湿吨
+        - lower: "0.30"
+          upper: "0.50"
+          rate: "20"
+          upper_open: true
+        # [0.5%, None)  → 50 元/湿吨
+        - lower: "0.50"
+          upper: null
+          rate: "50"
+          upper_open: true
+
+  assay_fee_total: null

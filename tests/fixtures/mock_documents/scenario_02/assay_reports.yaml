@@ -1,0 +1,29 @@
+# 场景二化验单数据
+# S2601: As=0.40% → 落第一档扣款
+# S2602: As=0.55% → 落第二档扣款
+# S2603: As=0.20% → 低于下限，无扣款
+
+assay_reports:
+  - report_id: "mock-ar-201"
+    contract_id: "mock-contract-002"
+    sample_id: "S2601"
+    cu_pct: "18.50"
+    h2o_pct: "10.00"
+    as_pct: "0.40"
+    is_settlement: true
+
+  - report_id: "mock-ar-202"
+    contract_id: "mock-contract-002"
+    sample_id: "S2602"
+    cu_pct: "19.20"
+    h2o_pct: "11.00"
+    as_pct: "0.55"
+    is_settlement: true
+
+  - report_id: "mock-ar-203"
+    contract_id: "mock-contract-002"
+    sample_id: "S2603"
+    cu_pct: "17.80"
+    h2o_pct: "9.00"
+    as_pct: "0.20"
+    is_settlement: true

@@ -75,9 +75,9 @@ class PricingElement(BaseModel):
 
 class ImpurityDeductionTier(BaseModel):
     """杂质扣款阶梯（M3D-2 使用）"""
-    lower: Decimal   # 本档起点（含），单位：%
-    upper: Decimal   # 本档终点（不含，最高档为 None）
-    rate: Decimal    # 扣款金额，单位：元/吨（湿重）
+    lower: Decimal              # 本档起点（含），单位：%
+    upper: Optional[Decimal] = None  # 本档终点（不含），最高档为 None
+    rate: Decimal               # 扣款金额，单位：元/吨（湿重）
 
     upper_open: bool = True  # 上限是否开区间（默认开区间）
 

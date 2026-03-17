@@ -1,0 +1,45 @@
+# 场景二磅单数据（3 票，1:1 对应化验单样号）
+# S2601: As=0.40% → 落第一档，S2602: As=0.55% → 落第二档，S2603: As=0.20% → 无扣款
+
+weigh_tickets:
+  - ticket_id: "mock-wt-201"
+    ticket_number: "WT-2026-001"
+    contract_id: "mock-contract-002"
+    commodity: "铜精矿"
+    wet_weight: "50.000"
+    weighing_date: "2026-02-10"
+    sample_id: "S2601"
+    vehicle_number: "浙A-11111"
+    gross_weight: "58.500"
+    tare_weight: "8.500"
+    deduction_weight: "0.000"
+    is_settlement: true
+    price_group: null
+
+  - ticket_id: "mock-wt-202"
+    ticket_number: "WT-2026-002"
+    contract_id: "mock-contract-002"
+    commodity: "铜精矿"
+    wet_weight: "45.000"
+    weighing_date: "2026-02-11"
+    sample_id: "S2602"
+    vehicle_number: "浙A-22222"
+    gross_weight: "53.500"
+    tare_weight: "8.500"
+    deduction_weight: "0.000"
+    is_settlement: true
+    price_group: null
+
+  - ticket_id: "mock-wt-203"
+    ticket_number: "WT-2026-003"
+    contract_id: "mock-contract-002"
+    commodity: "铜精矿"
+    wet_weight: "30.000"
+    weighing_date: "2026-02-12"
+    sample_id: "S2603"
+    vehicle_number: "浙A-33333"
+    gross_weight: "38.500"
+    tare_weight: "8.500"
+    deduction_weight: "0.000"
+    is_settlement: true
+    price_group: null
