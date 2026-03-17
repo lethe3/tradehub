@@ -61,11 +61,12 @@ class CashFlowRecord(BaseModel):
 
     @model_validator(mode="after")
     def check_element_payment_fields(self) -> "CashFlowRecord":
-        """元素货款必须填写 element 和金属量"""
+        """元素货款必须填写 element；按金属吨计价时还必须有 metal_quantity"""
         if self.flow_type == CashFlowType.ELEMENT_PAYMENT:
             if self.element is None:
                 raise ValueError("元素货款必须指定计价元素 (element)")
-            if self.metal_quantity is None:
+            # 元/吨（按湿重）计价时不存在金属量，仅金属吨计价时要求
+            if self.unit != "元/吨" and self.metal_quantity is None:
                 raise ValueError("元素货款必须填写金属量 (metal_quantity)")
         return self
 
