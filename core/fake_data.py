@@ -30,6 +30,9 @@ def generate_fake_contract() -> dict[str, Any]:
     contract_no = f"HT-MOCK-{date.today().strftime('%Y%m%d')}-{_rand_suffix()}"
     return {
         "合同编号": contract_no,
+        "我方主体": "我司A",
+        "交易对手": "测试供应商",
+        "签订日期": _today_ms(),
         "货品名称": "铜精矿",
         "合同方向": "采购",
         "计价元素": "Cu",

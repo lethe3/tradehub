@@ -714,6 +714,12 @@ class BitableTable:
             logger.error(f"删除记录失败: {response.msg}")
             raise BitableError(f"删除记录失败: {response.msg}")
 
+    def record_url(self, record_id: str | None) -> str:
+        """构造记录的飞书 Bitable 直链（展开视图）"""
+        if not record_id:
+            raise BitableError("record_id 为空，无法构造记录链接")
+        return f"https://feishu.cn/base/{self.app_token}?table={self.table_id}&record={record_id}"
+
 
 # ==================== 便捷函数 ====================
 

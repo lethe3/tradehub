@@ -290,22 +290,18 @@ class MessageHandler:
             if doc_type == "weigh_ticket":
                 weigh_ticket = parse_ocr_to_weigh_ticket(ocr_text)
                 record_data = weigh_ticket_to_dict(weigh_ticket)
-                card_json = self.card_template.generate(
-                    table_name="weigh_tickets",
-                    record_data=record_data,
-                    title="磅单 OCR 结果确认",
-                )
-                return {"type": "card", "content": card_json}
+                table = BitableTable(table_name="weigh_tickets")
+                record_id = table.create(record_data)
+                url = table.record_url(record_id)
+                return f"✅ 磅单已录入，请点击链接核对：\n{url}"
 
             # Step 4b: 化验单路径
             assay_report = parse_ocr_to_assay_report(ocr_text)
             record_data = assay_report_to_dict(assay_report)
-            card_json = self.card_template.generate(
-                table_name="assay_reports",
-                record_data=record_data,
-                title="化验单 OCR 结果确认",
-            )
-            return {"type": "card", "content": card_json}
+            table = BitableTable(table_name="assay_reports")
+            record_id = table.create(record_data)
+            url = table.record_url(record_id)
+            return f"✅ 化验单已录入，请点击链接核对：\n{url}"
 
         except Exception as e:
             logger.exception(f"图片识别失败: {e}")
@@ -344,13 +340,13 @@ class MessageHandler:
             self._last_weigh_tickets = []
             self._last_assay_reports = []
             unit = data["单价单位"]
+            url = table.record_url(record_id)
             return (
-                f"✅ 合同已创建\n"
+                f"✅ 合同已录入，请点击链接核对：\n{url}\n\n"
                 f"  合同编号：{data['合同编号']}\n"
                 f"  货品：{data['货品名称']}  方向：{data['合同方向']}\n"
                 f"  计价：{data['单价']:,.0f} {unit}\n"
-                f"  化验费：{data['化验费']:,.0f} 元（{data['化验费承担方']}承担）\n"
-                f"  record_id：{record_id}"
+                f"  化验费：{data['化验费']:,.0f} 元（{data['化验费承担方']}承担）"
             )
         except Exception as e:
             logger.exception("生成假合同失败")
@@ -368,9 +364,10 @@ class MessageHandler:
                 row = {k: v for k, v in t.items() if not k.startswith("_")}
                 record_id = table.create(row)
                 t["_record_id"] = record_id
-                lines.append(f"  样号 {t['_sample_id']}  净重 {t['净重(吨)']}t  record_id={record_id}")
+                url = table.record_url(record_id)
+                lines.append(f"  样号 {t['_sample_id']}  净重 {t['净重(吨)']}t\n  {url}")
             self._last_weigh_tickets = tickets
-            return "✅ 磅单已创建（2 条）\n" + "\n".join(lines)
+            return "✅ 磅单已录入（2 条），请点击链接核对：\n" + "\n".join(lines)
         except Exception as e:
             logger.exception("生成假磅单失败")
             return f"❌ 生成磅单失败：{e}"
@@ -389,9 +386,10 @@ class MessageHandler:
                 data["_record_id"] = record_id
                 data["_sample_id"] = t["_sample_id"]
                 assay_list.append(data)
-                lines.append(f"  样号 {t['_sample_id']}  Cu%={data['Cu%']}  H2O%={data['H2O%']}")
+                url = table.record_url(record_id)
+                lines.append(f"  样号 {t['_sample_id']}  Cu%={data['Cu%']}  H2O%={data['H2O%']}\n  {url}")
             self._last_assay_reports = assay_list
-            return "✅ 化验单已创建\n" + "\n".join(lines)
+            return "✅ 化验单已录入，请点击链接核对：\n" + "\n".join(lines)
         except Exception as e:
             logger.exception("生成假化验单失败")
             return f"❌ 生成化验单失败：{e}"
@@ -473,13 +471,36 @@ class MessageHandler:
 
             batch_view = BatchView(contract=contract_rec, batch_units=batch_units)
             cash_flows = generate_cash_flows(batch_view, contract_pricing)
-            summary = SettlementSummary.from_records(
-                contract_id=self._last_contract_record_id or "mock",
-                contract_number=cd["合同编号"],
-                records=cash_flows,
+
+            # 写入资金流水表，返回各条记录链接
+            cf_table = BitableTable(table_name="cash_flows")
+            links = []
+            for cf in cash_flows:
+                row = {
+                    "关联合同": cf.contract_id,
+                    "合同编号": cd["合同编号"],
+                    "流水类型": cf.flow_type.value,
+                    "方向": cf.direction.value,
+                    "计价元素": cf.element or "",
+                    "样号": cf.sample_id or "",
+                    "干重": float(cf.dry_weight) if cf.dry_weight is not None else None,
+                    "金属量": float(cf.metal_quantity) if cf.metal_quantity is not None else None,
+                    "单价": float(cf.unit_price) if cf.unit_price is not None else None,
+                    "单价单位": cf.unit or "",
+                    "金额": float(cf.amount),
+                    "备注": cf.note or "",
+                }
+                record_id = cf_table.create(row)
+                url = cf_table.record_url(record_id)
+                links.append(f"  {cf.flow_type.value}（{cf.direction.value} {cf.amount:,.2f} 元）\n  {url}")
+
+            total_income = sum(c.amount for c in cash_flows if c.direction.value == "收入")
+            total_expense = sum(c.amount for c in cash_flows if c.direction.value == "支出")
+            header = (
+                f"✅ 结算单已录入（{len(cash_flows)} 条流水），请点击链接逐条核对：\n"
+                f"  应收合计：{total_income:,.2f} 元  应付合计：{total_expense:,.2f} 元\n"
             )
-            card_json = build_settlement_card(summary)
-            return {"type": "card", "content": card_json}
+            return header + "\n".join(links)
 
         except Exception as e:
             logger.exception("结算计算失败")
