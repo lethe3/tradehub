@@ -1,0 +1,84 @@
+# 场景一预期资金流水（手算验证值）
+# 用于 test_m3a_models.py 中的断言测试
+#
+# 计算过程（用于核对）：
+#
+# 批次 S2501：
+#   湿重         = 50.225 t
+#   H2O%         = 10.00%
+#   干重         = 50.225 × (1 - 0.10) = 50.225 × 0.90 = 45.2025 t
+#   化验 Cu%     = 18.50%
+#   有效 Cu%     = 18.50 - 1.00 = 17.50%
+#   金属量       = 45.2025 × 0.1750 = 7.9104375 → 四舍五入3位 = 7.910 t
+#   货款         = 7.910 × 65000 = 514,150.00 元
+#
+# 批次 S2502：
+#   湿重         = 48.780 t
+#   H2O%         = 11.00%
+#   干重         = 48.780 × (1 - 0.11) = 48.780 × 0.89 = 43.4142 t
+#   化验 Cu%     = 19.20%
+#   有效 Cu%     = 19.20 - 1.00 = 18.20%
+#   金属量       = 43.4142 × 0.1820 = 7.9013844 → 四舍五入3位 = 7.901 t
+#   货款         = 7.901 × 65000 = 513,565.00 元
+#
+# 化验费（我方承担，支出）= 2,000.00 元
+#
+# 合计应付（货款合计）   = 514,150.00 + 513,565.00 = 1,027,715.00 元
+# 合计应支出           = 2,000.00 元
+# 净额（对方应收）      = 1,027,715.00 元（化验费在合同外另算）
+
+contract_id: "mock-contract-001"
+
+batch_calculations:
+  - sample_id: "S2501"
+    wet_weight: "50.225"
+    h2o_pct: "10.00"
+    dry_weight: "45.2025"          # 50.225 × 0.90，精确值
+    cu_assay_pct: "18.50"
+    cu_effective_pct: "17.50"      # 18.50 - 1.00
+    metal_quantity_cu: "7.910"     # 45.2025 × 0.1750 = 7.9104375 → 四舍五入
+    unit_price: "65000"
+    element_payment: "514150.00"   # 7.910 × 65000
+
+  - sample_id: "S2502"
+    wet_weight: "48.780"
+    h2o_pct: "11.00"
+    dry_weight: "43.4142"          # 48.780 × 0.89，精确值
+    cu_assay_pct: "19.20"
+    cu_effective_pct: "18.20"      # 19.20 - 1.00
+    metal_quantity_cu: "7.901"     # 43.4142 × 0.1820 = 7.9013844 → 四舍五入
+    unit_price: "65000"
+    element_payment: "513565.00"   # 7.901 × 65000
+
+expected_cash_flows:
+  - flow_type: "元素货款"
+    direction: "支出"              # 采购合同：货款对我方是支出
+    element: "Cu"
+    sample_id: "S2501"
+    dry_weight: "45.2025"
+    metal_quantity: "7.910"
+    unit_price: "65000"
+    unit: "元/金属吨"
+    amount: "514150.00"
+
+  - flow_type: "元素货款"
+    direction: "支出"
+    element: "Cu"
+    sample_id: "S2502"
+    dry_weight: "43.4142"
+    metal_quantity: "7.901"
+    unit_price: "65000"
+    unit: "元/金属吨"
+    amount: "513565.00"
+
+  - flow_type: "化验费"
+    direction: "支出"
+    element: null
+    amount: "2000.00"
+
+summary:
+  total_element_payment: "1027715.00"   # 514150 + 513565
+  total_assay_fee: "2000.00"
+  total_expense: "1029715.00"           # 货款 + 化验费
+  total_income: "0.00"
+  net_amount: "-1029715.00"             # 支出净额（负数）

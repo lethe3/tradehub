@@ -1,0 +1,35 @@
+# 场景一化验单数据（2 张，对应 S2501 / S2502）
+# Cu% 和 H2O% 是干重计算和结算的核心字段
+
+assay_reports:
+  - report_id: "mock-ar-001"
+    contract_id: "mock-contract-001"
+    sample_id: "S2501"
+    assay_type: "结算化验"
+    is_settlement: true
+    assay_date: "2025-02-12"
+    assay_lab: "某化验机构"
+    cu_pct: "18.50"    # Cu%
+    h2o_pct: "10.00"   # H2O%（水分）
+    au_gt: null
+    ag_gt: null
+    pb_pct: null
+    zn_pct: null
+    s_pct: null
+    as_pct: null
+
+  - report_id: "mock-ar-002"
+    contract_id: "mock-contract-001"
+    sample_id: "S2502"
+    assay_type: "结算化验"
+    is_settlement: true
+    assay_date: "2025-02-13"
+    assay_lab: "某化验机构"
+    cu_pct: "19.20"
+    h2o_pct: "11.00"
+    au_gt: null
+    ag_gt: null
+    pb_pct: null
+    zn_pct: null
+    s_pct: null
+    as_pct: null
