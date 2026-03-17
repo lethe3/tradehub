@@ -18,7 +18,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from .models.batch import BatchView
 from .models.cash_flow import CashFlowDirection, CashFlowRecord, CashFlowType
-from .models.pricing import ContractPricing, FormulaType, ImpurityDeductionTier, PriceSourceType
+from .models.pricing import ContractPricing, FormulaType, ImpurityDeductionTier, PriceSourceType, UnitType
 
 
 # ── 品位字段映射：元素名 → AssayReportRecord 对应属性名 ────────────
@@ -116,7 +116,7 @@ def generate_cash_flows(
     规则：
     - 合同 direction=="采购" → 货款方向为支出；"销售" → 收入
     - 若 contract_pricing.assay_fee_total 不为 None，追加化验费（支出）
-    - 仅支持 price_source_type=FIXED + formula_type=GRADE_DEDUCTION；其余抛 NotImplementedError
+    - 支持 FIXED + GRADE_DEDUCTION 和 FIXED + FIXED_PRICE（元/吨、元/金属吨）
 
     Args:
         batch_view:        M3C 串联输出的批次视图
@@ -146,41 +146,86 @@ def generate_cash_flows(
         dry_weight = calc_dry_weight(wet_weight, assay.h2o_pct)
 
         for pe in contract_pricing.pricing_elements:
-            # 门控：仅支持 FIXED + GRADE_DEDUCTION
             if pe.price_source_type != PriceSourceType.FIXED:
                 raise NotImplementedError(
-                    f"M3D-1 仅支持 fixed 基准价，元素 {pe.element} 使用了 {pe.price_source_type}"
+                    f"仅支持 fixed 基准价，元素 {pe.element} 使用了 {pe.price_source_type}"
                 )
-            if pe.formula_type != FormulaType.GRADE_DEDUCTION:
+
+            if pe.formula_type == FormulaType.FIXED_PRICE:
+                # 固定计价：元/吨（湿重）或 元/金属吨
+                if pe.unit == UnitType.CNY_PER_TON:
+                    payment = (wet_weight * pe.base_price).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                    records.append(CashFlowRecord(
+                        contract_id=contract.contract_id,
+                        flow_type=CashFlowType.ELEMENT_PAYMENT,
+                        direction=direction,
+                        element=pe.element,
+                        sample_id=unit.sample_id,
+                        unit_price=pe.base_price,
+                        unit=pe.unit.value,
+                        amount=payment,
+                    ))
+                elif pe.unit == UnitType.CNY_PER_METAL_TON:
+                    attr = _ELEMENT_ATTR.get(pe.element)
+                    if attr is None:
+                        raise ValueError(f"未知计价元素：{pe.element}")
+                    assay_grade: Decimal | None = getattr(assay, attr, None)
+                    if assay_grade is None:
+                        raise ValueError(
+                            f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
+                        )
+                    metal_qty = calc_metal_quantity(dry_weight, assay_grade, Decimal("0"))
+                    payment = calc_element_payment(metal_qty, pe.base_price)
+                    records.append(CashFlowRecord(
+                        contract_id=contract.contract_id,
+                        flow_type=CashFlowType.ELEMENT_PAYMENT,
+                        direction=direction,
+                        element=pe.element,
+                        sample_id=unit.sample_id,
+                        dry_weight=dry_weight,
+                        metal_quantity=metal_qty,
+                        unit_price=pe.base_price,
+                        unit=pe.unit.value,
+                        amount=payment,
+                    ))
+                else:
+                    raise NotImplementedError(
+                        f"FIXED_PRICE 不支持单位 {pe.unit}，仅支持元/吨 和 元/金属吨"
+                    )
+
+            elif pe.formula_type == FormulaType.GRADE_DEDUCTION:
+                # 品位扣减公式
+                attr = _ELEMENT_ATTR.get(pe.element)
+                if attr is None:
+                    raise ValueError(f"未知计价元素：{pe.element}")
+                assay_grade = getattr(assay, attr, None)
+                if assay_grade is None:
+                    raise ValueError(
+                        f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
+                    )
+
+                metal_qty = calc_metal_quantity(dry_weight, assay_grade, pe.grade_deduction)
+                payment = calc_element_payment(metal_qty, pe.base_price)
+
+                records.append(CashFlowRecord(
+                    contract_id=contract.contract_id,
+                    flow_type=CashFlowType.ELEMENT_PAYMENT,
+                    direction=direction,
+                    element=pe.element,
+                    sample_id=unit.sample_id,
+                    dry_weight=dry_weight,
+                    metal_quantity=metal_qty,
+                    unit_price=pe.base_price,
+                    unit=pe.unit.value,
+                    amount=payment,
+                ))
+
+            else:
                 raise NotImplementedError(
-                    f"M3D-1 仅支持 grade_deduction 公式，元素 {pe.element} 使用了 {pe.formula_type}"
+                    f"不支持公式类型 {pe.formula_type}，元素 {pe.element}"
                 )
-
-            # 取品位
-            attr = _ELEMENT_ATTR.get(pe.element)
-            if attr is None:
-                raise ValueError(f"未知计价元素：{pe.element}")
-            assay_grade: Decimal | None = getattr(assay, attr, None)
-            if assay_grade is None:
-                raise ValueError(
-                    f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
-                )
-
-            metal_qty = calc_metal_quantity(dry_weight, assay_grade, pe.grade_deduction)
-            payment = calc_element_payment(metal_qty, pe.base_price)
-
-            records.append(CashFlowRecord(
-                contract_id=contract.contract_id,
-                flow_type=CashFlowType.ELEMENT_PAYMENT,
-                direction=direction,
-                element=pe.element,
-                sample_id=unit.sample_id,
-                dry_weight=dry_weight,
-                metal_quantity=metal_qty,
-                unit_price=pe.base_price,
-                unit=pe.unit.value,
-                amount=payment,
-            ))
 
     # 杂质扣款
     for imp in contract_pricing.impurity_deductions:

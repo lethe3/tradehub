@@ -1,59 +1,95 @@
 assay_reports:
   fields:
-  - field_id: fldAssayAuto
-    name: 化验编号
-    type: 1005
-  - field_id: fldAssaySampleId
+  - field_id: fldl27PJSQ
+    name: 多行文本
+    type: 1
+  - field_id: fldcTn4RHo
+    name: 关联合同
+    type: 1
+  - field_id: fldYr2zpA1
     name: 样号
     type: 1
-  - field_id: fldAssayContract
-    name: 关联合同
-    type: 18
-  - field_id: fldAssayType
+  - field_id: fld5teTzdk
     name: 化验类型
-    options:
-    - color: 0
-      id: optAssayFast
-      name: 快速摸底
-    - color: 1
-      id: optAssaySettle
-      name: 结算化验
-    type: 3
-  - field_id: fldAssayIsSettle
+    type: 1
+  - field_id: fldvFiLxmT
     name: 是否结算化验单
     type: 7
-  - field_id: fldAssayCu
+  - field_id: fldtNLhJ4F
     name: Cu%
     type: 2
-  - field_id: fldAssayAu
+  - field_id: fldZXag5lt
     name: Au(g/t)
     type: 2
-  - field_id: fldAssayAg
+  - field_id: fldsyhusIw
     name: Ag(g/t)
     type: 2
-  - field_id: fldAssayPb
+  - field_id: fld7w2nIF6
     name: Pb%
     type: 2
-  - field_id: fldAssayZn
+  - field_id: fldobRD0J3
     name: Zn%
     type: 2
-  - field_id: fldAssayS
+  - field_id: fldxEatM3Q
     name: S%
     type: 2
-  - field_id: fldAssayAs
+  - field_id: fldhpb1T8b
     name: As%
     type: 2
-  - field_id: fldAssayH2O
+  - field_id: fldPRTJ9yr
     name: H2O%
     type: 2
-  - field_id: fldAssayDate
+  - field_id: fldJXxdQgX
     name: 化验日期
     type: 5
-  - field_id: fldAssayLab
+  - field_id: fldRynZtB8
     name: 化验机构
     type: 1
   name: 化验单
-  table_id: tblAssayReportsMock
+  table_id: tblIH73zq4sdzyVu
+cash_flows:
+  fields:
+  - field_id: fldJeVrzo2
+    name: 多行文本
+    type: 1
+  - field_id: fldyfHMC6k
+    name: 关联合同
+    type: 1
+  - field_id: fldXg9PjLZ
+    name: 合同编号
+    type: 1
+  - field_id: fldGZ8GYHb
+    name: 流水类型
+    type: 1
+  - field_id: fldnc0VBAs
+    name: 方向
+    type: 1
+  - field_id: fldkcbOu9m
+    name: 计价元素
+    type: 1
+  - field_id: fldIeTm2hn
+    name: 样号
+    type: 1
+  - field_id: flda6kx7da
+    name: 干重
+    type: 2
+  - field_id: fldVzdOWCM
+    name: 金属量
+    type: 2
+  - field_id: fldfTgZsJi
+    name: 单价
+    type: 2
+  - field_id: fld2URB4Jk
+    name: 单价单位
+    type: 1
+  - field_id: fld0pqQk5y
+    name: 金额
+    type: 2
+  - field_id: fldGlV2v8d
+    name: 备注
+    type: 1
+  name: 资金流水
+  table_id: tblPWyG1hmvlm8oQ
 contracts:
   fields:
   - field_id: fld16duzs9
@@ -101,6 +137,27 @@ contracts:
   - field_id: fld2WRdug6
     name: 签订日期
     type: 5
+  - field_id: fldM0K7BjD
+    name: 货品名称
+    type: 1
+  - field_id: fldXvgdPuP
+    name: 计价元素
+    type: 1
+  - field_id: fldQDBCVwa
+    name: 单价
+    type: 2
+  - field_id: fldBTJlC4U
+    name: 单价单位
+    type: 1
+  - field_id: fldFHDUfbX
+    name: 品位扣减
+    type: 2
+  - field_id: fldnVWHnoH
+    name: 化验费
+    type: 2
+  - field_id: fldzU87Lw6
+    name: 化验费承担方
+    type: 1
   name: 合同表
   table_id: tbl88afziZfqONru
 stock_inflows:
@@ -143,5 +200,17 @@ weigh_tickets:
   - field_id: fldK8hNOin
     name: 过磅日期
     type: 5
+  - field_id: fldoJcjPjw
+    name: 样号
+    type: 1
+  - field_id: flduZDnnau
+    name: 车号
+    type: 1
+  - field_id: fldzjMlOhw
+    name: 毛重
+    type: 2
+  - field_id: fldE2Fmzpg
+    name: 皮重
+    type: 2
   name: 磅单
   table_id: tblj5CAZp9bXwB0u

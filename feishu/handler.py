@@ -20,12 +20,19 @@ import json
 import logging
 import os
 import tempfile
+from decimal import Decimal
 from typing import Optional
 
 from core import get_dispatcher, HandlerResult
+from core.fake_data import generate_fake_contract, generate_fake_weigh_tickets, generate_fake_assay_report
+from core.models.batch import AssayReportRecord, BatchUnit, BatchView, ContractRecord, WeighTicketRecord
+from core.models.cash_flow import CashFlowDirection, CashFlowRecord, CashFlowType, SettlementSummary
+from core.models.pricing import ContractPricing, FormulaType, PricingElement, UnitType
+from core.settlement import generate_cash_flows
 from feishu.bot import FeishuBot, ImageMessage, TextMessage
 from feishu.cards import CardTemplate, create_card_template, parse_card_callback
 from feishu.bitable import BitableTable
+from feishu.settlement_card import build_settlement_card
 from ai.ocr import ocr_image
 from ai.weigh_ticket import parse_ocr_to_weigh_ticket, weigh_ticket_to_dict
 from ai.assay_report import parse_ocr_to_assay_report, assay_report_to_dict
@@ -226,6 +233,11 @@ class MessageHandler:
         self.bot = bot
         self.dispatcher = get_dispatcher()
         self.card_template = create_card_template()
+        # 假数据流内存状态（最近一次生成的合同/磅单/化验单）
+        self._last_contract_record_id: Optional[str] = None
+        self._last_contract_data: Optional[dict] = None
+        self._last_weigh_tickets: list[dict] = []   # 含 _sample_id, _record_id
+        self._last_assay_reports: list[dict] = []    # 含 _sample_id, _record_id
 
     def handle(self, message) -> str | dict:
         """
@@ -303,9 +315,175 @@ class MessageHandler:
             os.unlink(temp_path)
 
     def _handle_text(self, message: TextMessage) -> str:
-        """处理文本消息：dispatcher 路由"""
+        """处理文本消息：假数据命令 or dispatcher 路由"""
+        text = getattr(message, "text", "") or ""
+        text = text.strip()
+
+        if text == "合同":
+            return self._cmd_gen_contract()
+        if text == "磅单":
+            return self._cmd_gen_weigh_tickets()
+        if text == "化验单":
+            return self._cmd_gen_assay_reports()
+        if text in ("结算", "结算单"):
+            return self._cmd_settlement()  # type: ignore[return-value]
+
         result: HandlerResult = self.dispatcher.route(message)
         return result.message
+
+    # ── 假数据命令 ──────────────────────────────────────────────
+
+    def _cmd_gen_contract(self) -> str:
+        """生成假合同 → 写 Bitable → 存状态"""
+        try:
+            data = generate_fake_contract()
+            table = BitableTable(table_name="contracts")
+            record_id = table.create(data)
+            self._last_contract_record_id = record_id
+            self._last_contract_data = data
+            self._last_weigh_tickets = []
+            self._last_assay_reports = []
+            unit = data["单价单位"]
+            return (
+                f"✅ 合同已创建\n"
+                f"  合同编号：{data['合同编号']}\n"
+                f"  货品：{data['货品名称']}  方向：{data['合同方向']}\n"
+                f"  计价：{data['单价']:,.0f} {unit}\n"
+                f"  化验费：{data['化验费']:,.0f} 元（{data['化验费承担方']}承担）\n"
+                f"  record_id：{record_id}"
+            )
+        except Exception as e:
+            logger.exception("生成假合同失败")
+            return f"❌ 生成合同失败：{e}"
+
+    def _cmd_gen_weigh_tickets(self) -> str:
+        """生成假磅单 → 写 Bitable → 存状态"""
+        if not self._last_contract_record_id:
+            return "⚠️ 请先发送「合同」生成合同记录，再生成磅单"
+        try:
+            tickets = generate_fake_weigh_tickets(self._last_contract_record_id, count=2)
+            table = BitableTable(table_name="weigh_tickets")
+            lines = []
+            for t in tickets:
+                row = {k: v for k, v in t.items() if not k.startswith("_")}
+                record_id = table.create(row)
+                t["_record_id"] = record_id
+                lines.append(f"  样号 {t['_sample_id']}  净重 {t['净重(吨)']}t  record_id={record_id}")
+            self._last_weigh_tickets = tickets
+            return "✅ 磅单已创建（2 条）\n" + "\n".join(lines)
+        except Exception as e:
+            logger.exception("生成假磅单失败")
+            return f"❌ 生成磅单失败：{e}"
+
+    def _cmd_gen_assay_reports(self) -> str:
+        """为每张磅单生成一条假化验单 → 写 Bitable → 存状态"""
+        if not self._last_weigh_tickets:
+            return "⚠️ 请先发送「磅单」生成磅单记录，再生成化验单"
+        try:
+            table = BitableTable(table_name="assay_reports")
+            lines = []
+            assay_list = []
+            for t in self._last_weigh_tickets:
+                data = generate_fake_assay_report(t["_sample_id"], self._last_contract_record_id)
+                record_id = table.create(data)
+                data["_record_id"] = record_id
+                data["_sample_id"] = t["_sample_id"]
+                assay_list.append(data)
+                lines.append(f"  样号 {t['_sample_id']}  Cu%={data['Cu%']}  H2O%={data['H2O%']}")
+            self._last_assay_reports = assay_list
+            return "✅ 化验单已创建\n" + "\n".join(lines)
+        except Exception as e:
+            logger.exception("生成假化验单失败")
+            return f"❌ 生成化验单失败：{e}"
+
+    def _cmd_settlement(self) -> str | dict:
+        """用内存数据计算结算 → 返回结算卡片"""
+        if not self._last_contract_data:
+            return "⚠️ 请先依次发送「合同」→「磅单」→「化验单」，再触发结算"
+        if not self._last_weigh_tickets:
+            return "⚠️ 缺少磅单数据，请先发送「磅单」"
+        if not self._last_assay_reports:
+            return "⚠️ 缺少化验单数据，请先发送「化验单」"
+        try:
+            cd = self._last_contract_data
+            # 构建 ContractRecord（仅需 settlement 必要字段）
+            contract_rec = ContractRecord(
+                contract_id=self._last_contract_record_id or "mock",
+                contract_number=cd["合同编号"],
+                direction=cd["合同方向"],
+                commodity=cd["货品名称"],
+                counterparty="MOCK对手方",
+            )
+
+            # 构建 ContractPricing
+            unit_map = {"元/吨": UnitType.CNY_PER_TON, "元/金属吨": UnitType.CNY_PER_METAL_TON}
+            unit_type = unit_map.get(cd["单价单位"], UnitType.CNY_PER_TON)
+            pe = PricingElement(
+                element=cd["计价元素"],
+                base_price=Decimal(str(cd["单价"])),
+                unit=unit_type,
+                formula_type=FormulaType.FIXED_PRICE,
+                grade_deduction=Decimal(str(cd.get("品位扣减", 0))),
+            )
+            contract_pricing = ContractPricing(
+                contract_id=self._last_contract_record_id or "mock",
+                contract_number=cd["合同编号"],
+                pricing_elements=[pe],
+                assay_fee_total=Decimal(str(cd["化验费"])) if cd.get("化验费承担方") == "我方" else None,
+            )
+
+            # 构建 BatchUnit 列表（将 assay 与 weigh 按 sample_id 匹配）
+            assay_by_sample = {a["_sample_id"]: a for a in self._last_assay_reports}
+            tickets_by_sample: dict[str, list] = {}
+            for t in self._last_weigh_tickets:
+                tickets_by_sample.setdefault(t["_sample_id"], []).append(t)
+
+            batch_units = []
+            for sample_id, tickets in tickets_by_sample.items():
+                assay_data = assay_by_sample.get(sample_id)
+                if not assay_data:
+                    continue
+                weigh_records = [
+                    WeighTicketRecord(
+                        ticket_id=t.get("_record_id", "mock"),
+                        ticket_number=t.get("磅单编号", "mock"),
+                        contract_id=self._last_contract_record_id or "mock",
+                        commodity=t.get("货物品名", "铜精矿"),
+                        wet_weight=Decimal(str(t["净重(吨)"])),
+                        sample_id=sample_id,
+                    )
+                    for t in tickets
+                ]
+                assay_record = AssayReportRecord(
+                    report_id=assay_data.get("_record_id", "mock"),
+                    contract_id=self._last_contract_record_id or "mock",
+                    sample_id=sample_id,
+                    cu_pct=Decimal(str(assay_data["Cu%"])),
+                    au_gt=Decimal(str(assay_data["Au(g/t)"])),
+                    ag_gt=Decimal(str(assay_data["Ag(g/t)"])),
+                    pb_pct=Decimal(str(assay_data["Pb%"])),
+                    as_pct=Decimal(str(assay_data["As%"])),
+                    h2o_pct=Decimal(str(assay_data["H2O%"])),
+                )
+                batch_units.append(BatchUnit(
+                    sample_id=sample_id,
+                    weigh_tickets=weigh_records,
+                    assay_report=assay_record,
+                ))
+
+            batch_view = BatchView(contract=contract_rec, batch_units=batch_units)
+            cash_flows = generate_cash_flows(batch_view, contract_pricing)
+            summary = SettlementSummary.from_records(
+                contract_id=self._last_contract_record_id or "mock",
+                contract_number=cd["合同编号"],
+                records=cash_flows,
+            )
+            card_json = build_settlement_card(summary)
+            return {"type": "card", "content": card_json}
+
+        except Exception as e:
+            logger.exception("结算计算失败")
+            return f"❌ 结算失败：{e}"
 
 
 # ==================== 工厂函数（保持向后兼容） ====================

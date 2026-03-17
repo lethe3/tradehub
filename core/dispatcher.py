@@ -16,10 +16,14 @@ logger = logging.getLogger(__name__)
 
 class Intent(Enum):
     """支持的意图类型"""
-    WEIGH_TICKET = "weigh_ticket"  # 磅单录入
-    ASSAY_REPORT = "assay_report"  # 化验单录入
-    QUERY_SUMMARY = "query_summary"  # 汇总查询
-    UNKNOWN = "unknown"  # 未知
+    WEIGH_TICKET = "weigh_ticket"          # 磅单录入（OCR）
+    ASSAY_REPORT = "assay_report"          # 化验单录入（OCR）
+    QUERY_SUMMARY = "query_summary"        # 汇总查询
+    GENERATE_CONTRACT = "gen_contract"     # 生成假合同记录
+    GENERATE_WEIGH_TICKET = "gen_weigh"    # 生成假磅单记录
+    GENERATE_ASSAY_REPORT = "gen_assay"    # 生成假化验单记录
+    SETTLEMENT = "settlement"              # 触发结算计算 + 卡片
+    UNKNOWN = "unknown"                    # 未知
 
 
 @dataclass

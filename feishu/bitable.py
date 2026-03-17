@@ -58,11 +58,13 @@ from lark_oapi.api.bitable.v1 import (
     CreateAppTableFieldRequest,
     CreateAppTableRecordRequest,
     CreateAppTableRequest,
+    CreateAppTableRequestBody,
     DeleteAppTableRecordRequest,
     GetAppTableRecordRequest,
     ListAppTableFieldRequest,
     ListAppTableRecordRequest,
     ListAppTableRequest,
+    ReqTable,
     UpdateAppTableRecordRequest,
     AppTableRecord,
 )
@@ -169,11 +171,11 @@ class BitableApp:
         Returns:
             新创建的 table_id
         """
+        req_table = ReqTable.builder().name(table_name).build()
+        req_body = CreateAppTableRequestBody.builder().table(req_table).build()
         request = CreateAppTableRequest.builder() \
             .app_token(self.app_token) \
-            .request_body(
-                {"name": table_name}
-            ) \
+            .request_body(req_body) \
             .build()
 
         response = self.client.bitable.v1.app_table.create(request)
@@ -293,7 +295,7 @@ class BitableTable:
         if not response.success():
             raise RuntimeError(f"创建字段失败: {response.msg}")
 
-        return response.data.field_id
+        return response.data.field.field_id
 
     # ==================== 字段值转换 ====================
 
