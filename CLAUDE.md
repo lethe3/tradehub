@@ -31,6 +31,9 @@ Zhang：统计学背景，擅长数据结构设计和业务逻辑，不擅长工
 - 结算相关的业务规则（计价公式、扣款阶梯、取整策略）由 Zhang 主导定义，通常以合同摘录卡 YAML 的形式提供
 
 ## ⚠️ 工作流程
+
+**快速任务**（commit / 单文件改动 / 文档更新）→ 直接执行，≤3步，不读无关文件，不制定计划。
+**里程碑任务**（新功能 / 集成调试 / 重构）→ 走下方完整流程：
 ```
 Zhang 给出任务（里程碑）
     ↓
@@ -95,6 +98,16 @@ tradehub/
 
 - 使用官方 Python SDK `lark_oapi`。参考 `references/openclaw-lark/skills/` 了解能力边界和参数结构，但实际代码用 `lark_oapi` 写，不翻译 TypeScript。
 - 同时集成了飞书 MCP。
+
+**SDK 调用门控（不可跳过）：** 写任何 `feishu/` 或 `lark_oapi` 调用前，必须先跑：
+```bash
+python scripts/inspect_sdk.py <模块名>   # 例：python scripts/inspect_sdk.py im.v1
+```
+将输出贴在回复里，确认参数名和类型后再写代码。无 inspect 输出 = 禁止写调用代码。
+
+**飞书调试标准开场：** 调试飞书问题时，第一步必须是：
+1. `python -m pytest tests/ -v` — 看实际错误，不猜
+2. 常见首选排查点：① 事件格式（`header`/`body` 路径） ② `sender_id` 路径 ③ 消息去重
 
 ## Git
 
