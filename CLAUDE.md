@@ -2,7 +2,7 @@
 
 ## 项目
 
-TradeHub：飞书 Bot + Bitable 的大宗商品贸易 AI 系统，当前从跟单切入验证。
+TradeHub Workbench：面向有色金属散货贸易的独立 Web 工作台（React SPA + FastAPI），合同6阶段全流程管理。前身为飞书 Bot + Bitable 系统（阶段二已完成结算验证），阶段三转向独立工作台构建。
 
 ## ⚠️ 启动检查（每次新会话）
 
@@ -72,40 +72,55 @@ Zhang 说"确认完成"后：
 ## 架构
 ```
 tradehub/
-├── feishu/       ← 平台层：飞书 Bot(WebSocket)、Bitable API、消息卡片
-├── core/         ← 业务层：意图路由、技能模块、计价引擎、数据串联
+├── core/         ← 业务层：计价引擎、数据串联（可复用核心）
 │   └── models/   ← Pydantic 数据模型（batch · cash_flow · pricing）
-├── ai/           ← AI 层：OCR/VLM 调用、Instructor 结构化解析、prompt 模板
-├── schema/       ← Schema层：schema.yaml + loader + sync
+├── engine/       ← Recipe 双引擎：recipe.py（Python/Decimal）+ recipe.js（JS/前端）
+├── api/          ← FastAPI 路由层：REST API，调用 core/ 和 store/
+├── store/        ← 存储抽象层：DataStore 接口，JsonFileStore（开发期）→ BitableStore（生产期）
+├── web/          ← React SPA 前端：Zustand 状态、Tailwind UI、合同6阶段工作流
+├── schema/       ← Schema层：schema.yaml + loader（飞书 Bitable 对齐）
+├── feishu/       ← ⏸️ 暂冻结（Phase 3 再对接）：飞书 Bot、Bitable API、消息卡片
+├── ai/           ← ⏸️ 暂冻结（Phase 2-3 接入）：OCR/VLM 调用、Instructor 结构化解析
 └── main.py       ← 入口：只做组装和调度
 ```
 
-**核心规则：`core/` 不允许 import `feishu/` 或 `ai/`。**
+**核心规则：`core/` 不允许 import `feishu/`、`ai/`、`api/`、`store/` 或 `web/`。**
 
-`core/models/` 是纯 Pydantic 数据模型，零外部依赖。`core/` 下的计算模块（linking.py、settlement.py）只接收和返回这些模型，Bitable 读写由 `feishu/` 层在外部完成。`feishu/` 将飞书事件转为标准输入交给 `core/`，`ai/` 负责 OCR/LLM 调用并返回标准输出。不需要写抽象基类或适配器模式，保持简单。
+`core/models/` 是纯 Pydantic 数据模型，零外部依赖。`engine/` 实现 Recipe 双引擎（Python 版用 Decimal 做正式结算，JS 版做前端实时预览），两者共享同一 Recipe Schema 并用 fixture 交叉验证。`store/` 定义 DataStore 接口，切换存储只改配置。不需要写抽象基类或适配器模式，保持简单。
 
 ## 关键依赖
 
-- 飞书集成：`lark_oapi`（官方 SDK）
-- 结构化解析：`instructor` + `pydantic`
-- OCR（开发期）：GLM-OCR API
-- 业务推理（目标态）：Qwen3 32B（Ollama）
+**后端（Python）：**
 - 数值计算：`decimal`（标准库，结算金额必须用 Decimal，不用 float）
+- 结构化解析：`instructor` + `pydantic`
+- API 层：`fastapi` + `uvicorn`
+- 存储（开发期）：JSON 文件（JsonFileStore）
+
+**前端（JS/TS）：**
+- 框架：React + React Router
+- 状态管理：Zustand（轻量）
+- UI：Tailwind CSS
+- 前端计算引擎：JS 版 Recipe Evaluator（与 Python 版共享 Recipe Schema）
+
+**暂冻结（Phase 3+ 再启用）：**
+- 飞书集成：`lark_oapi`（官方 SDK）
+- OCR（开发期）：GLM-OCR API
+- 业务推理：Qwen3 32B（Ollama）
 
 未列出的依赖不要自行引入，需要时先和 Zhang 确认。
 
-## 飞书
+## 飞书（⏸️ Phase 1-2 暂冻结，Phase 3+ 再对接）
 
 - 使用官方 Python SDK `lark_oapi`。参考 `references/openclaw-lark/skills/` 了解能力边界和参数结构，但实际代码用 `lark_oapi` 写，不翻译 TypeScript。
 - 同时集成了飞书 MCP。
 
-**SDK 调用门控（不可跳过）：** 写任何 `feishu/` 或 `lark_oapi` 调用前，必须先跑：
+**SDK 调用门控（Phase 3+ 适用，不可跳过）：** 写任何 `feishu/` 或 `lark_oapi` 调用前，必须先跑：
 ```bash
 python scripts/inspect_sdk.py <模块名>   # 例：python scripts/inspect_sdk.py im.v1
 ```
 将输出贴在回复里，确认参数名和类型后再写代码。无 inspect 输出 = 禁止写调用代码。
 
-**飞书调试标准开场：** 调试飞书问题时，第一步必须是：
+**飞书调试标准开场（Phase 3+ 适用）：** 调试飞书问题时，第一步必须是：
 1. `python -m pytest tests/ -v` — 看实际错误，不猜
 2. 常见首选排查点：① 事件格式（`header`/`body` 路径） ② `sender_id` 路径 ③ 消息去重
 
