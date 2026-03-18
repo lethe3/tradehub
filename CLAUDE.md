@@ -79,7 +79,7 @@ tradehub/
 ├── store/        ← 存储抽象层：DataStore 接口，JsonFileStore（开发期）→ BitableStore（生产期）
 ├── web/          ← React SPA 前端：Zustand 状态、Tailwind UI、合同6阶段工作流
 ├── schema/       ← Schema层：schema.yaml + loader（飞书 Bitable 对齐）
-├── feishu/       ← ⏸️ 暂冻结（Phase 3 再对接）：飞书 Bot、Bitable API、消息卡片
+├── feishu/       ← 文件入口通道：图片→OCR→预录入→链接核实（Bot/Bitable/ws_client/cards）
 ├── ai/           ← ⏸️ 暂冻结（Phase 2-3 接入）：OCR/VLM 调用、Instructor 结构化解析
 └── main.py       ← 入口：只做组装和调度
 ```
