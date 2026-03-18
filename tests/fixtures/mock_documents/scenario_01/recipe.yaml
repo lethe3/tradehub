@@ -1,0 +1,21 @@
+# 场景一 Recipe（固定计价，单元素 Cu，品位扣减）
+# 对应 contract.yaml 中的 pricing 节
+
+contract_id: "mock-contract-001"
+version: "1.0"
+
+elements:
+  - name: "Cu"
+    type: "element"
+    quantity:
+      basis: "metal_quantity"   # 以金属量（金属吨）为计量基数
+      grade_field: "cu_pct"     # 对应 AssayReportRecord.cu_pct
+      grade_deduction: "1.0"    # 有效 Cu% = 化验 Cu% - 1.0%
+    unit_price:
+      source: "fixed"
+      value: "65000"            # 元/金属吨
+      unit: "元/金属吨"
+    operations: []              # Phase 1 为空，Phase 2+ 扩展
+    tiers: []
+
+assay_fee: "2000.00"            # 化验费（我方承担，2000 元）

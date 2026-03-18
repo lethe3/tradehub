@@ -1,0 +1,40 @@
+# 场景二 Recipe（固定计价，Cu + As 杂质扣款两档阶梯）
+# 对应 contract.yaml 中的 pricing 节
+
+contract_id: "mock-contract-002"
+version: "1.0"
+
+elements:
+  - name: "Cu"
+    type: "element"
+    quantity:
+      basis: "metal_quantity"
+      grade_field: "cu_pct"
+      grade_deduction: "1.0"
+    unit_price:
+      source: "fixed"
+      value: "65000"
+      unit: "元/金属吨"
+    operations: []
+    tiers: []
+
+  - name: "As"
+    type: "deduction"
+    quantity:
+      basis: "wet_weight"       # 杂质扣款以湿重为基数
+      grade_field: "as_pct"     # 品位字段：As%
+      grade_deduction: "0"
+    unit_price:
+      source: "fixed"
+      value: null               # 由 tiers 决定费率，无统一单价
+      unit: "元/吨"
+    operations: []
+    tiers:
+      - lower: "0.30"
+        upper: "0.50"
+        rate: "20"              # [0.3%, 0.5%) → 20 元/湿吨
+      - lower: "0.50"
+        upper: null
+        rate: "50"              # [0.5%, ∞) → 50 元/湿吨
+
+assay_fee: null                 # 化验费由对方承担
