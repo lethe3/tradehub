@@ -477,8 +477,6 @@ class MessageHandler:
                     "H2O(%)": float(item.h2o_pct) if item.h2o_pct is not None else None,
                     "干重(吨)": float(item.dry_weight) if item.dry_weight is not None else None,
                     "化验品位": float(item.assay_grade) if item.assay_grade is not None else None,
-                    "品位扣减": float(item.grade_deduction_val) if item.grade_deduction_val is not None else None,
-                    "有效品位": float(item.effective_grade) if item.effective_grade is not None else None,
                     "金属量(吨)": float(item.metal_quantity) if item.metal_quantity is not None else None,
                     "单价": float(item.unit_price) if item.unit_price is not None else None,
                     "单价单位": item.unit or "",

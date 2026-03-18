@@ -22,7 +22,6 @@ pricing:
       price_source_type: "fixed"      # 轴一：合同固定价
       base_price: 65000               # 元/金属吨
       unit: "元/金属吨"
-      formula_type: "grade_deduction" # 轴二：品位扣减
-      grade_deduction: 1.0            # 有效 Cu% = 化验 Cu% - 1.0%
+      formula_type: "fixed_price"
   impurity_deductions: []
   assay_fee_total: 2000.00            # 化验费（我方承担，从货款中扣）

@@ -221,28 +221,7 @@ class TestBatchView:
 # ═══════════════════════════════════════════════════════════════
 
 class TestPricingElement:
-    def test_grade_deduction(self):
-        pe = PricingElement(
-            element="Cu",
-            price_source_type=PriceSourceType.FIXED,
-            base_price=Decimal("65000"),
-            formula_type=FormulaType.GRADE_DEDUCTION,
-            unit=UnitType.CNY_PER_METAL_TON,
-            grade_deduction=Decimal("1.0"),
-        )
-        effective = pe.effective_grade(Decimal("18.50"))
-        assert effective == Decimal("17.50")
-
-    def test_zero_deduction(self):
-        pe = PricingElement(
-            element="Cu",
-            price_source_type=PriceSourceType.FIXED,
-            base_price=Decimal("65000"),
-            formula_type=FormulaType.GRADE_DEDUCTION,
-            unit=UnitType.CNY_PER_METAL_TON,
-            grade_deduction=Decimal("0"),
-        )
-        assert pe.effective_grade(Decimal("20.00")) == Decimal("20.00")
+    pass
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -257,8 +236,8 @@ class TestCashFlowRecord:
                 flow_type=CashFlowType.ELEMENT_PAYMENT,
                 direction=CashFlowDirection.EXPENSE,
                 # element 缺失 → 应抛出 ValidationError
-                metal_quantity=Decimal("7.910"),
-                amount=Decimal("514150.00"),
+                metal_quantity=Decimal("8.362"),
+                amount=Decimal("543530.00"),
             )
 
     def test_signed_amount_income(self):
@@ -293,10 +272,10 @@ class TestSettlementSummary:
                 direction=CashFlowDirection.EXPENSE,
                 element="Cu",
                 sample_id="S2501",
-                metal_quantity=Decimal("7.910"),
+                metal_quantity=Decimal("8.362"),
                 unit_price=Decimal("65000"),
                 unit="元/金属吨",
-                amount=Decimal("514150.00"),
+                amount=Decimal("543530.00"),
             ),
             CashFlowRecord(
                 contract_id="c001",
@@ -304,10 +283,10 @@ class TestSettlementSummary:
                 direction=CashFlowDirection.EXPENSE,
                 element="Cu",
                 sample_id="S2502",
-                metal_quantity=Decimal("7.901"),
+                metal_quantity=Decimal("8.336"),
                 unit_price=Decimal("65000"),
                 unit="元/金属吨",
-                amount=Decimal("513565.00"),
+                amount=Decimal("541840.00"),
             ),
             CashFlowRecord(
                 contract_id="c001",
@@ -321,8 +300,8 @@ class TestSettlementSummary:
         records = self._make_records()
         summary = SettlementSummary.from_records("c001", "HT-2025-001", records)
         assert summary.total_income == Decimal("0")
-        assert summary.total_expense == Decimal("1029715.00")
-        assert summary.net_amount == Decimal("-1029715.00")
+        assert summary.total_expense == Decimal("1087370.00")
+        assert summary.net_amount == Decimal("-1087370.00")
         assert summary.is_settled is False
 
     def test_settled_when_net_zero(self):
@@ -374,18 +353,18 @@ class TestScenario01Alignment:
         assert dry == expected, f"实际={dry}，期望={expected}"
 
     def test_batch_s2501_metal_quantity(self):
-        """S2501 金属量 = 45.2025 × 0.1750 = 7.9104375 → 7.910"""
+        """S2501 金属量 = 45.2025 × 0.1850 = 8.3624625 → 8.362"""
         dry = Decimal("45.2025")
-        effective_pct = Decimal("17.50")  # 18.50 - 1.00
-        mq = calc_metal_quantity(dry, effective_pct)
-        assert mq == Decimal("7.910"), f"实际={mq}"
+        cu_pct = Decimal("18.50")
+        mq = calc_metal_quantity(dry, cu_pct)
+        assert mq == Decimal("8.362"), f"实际={mq}"
 
     def test_batch_s2501_payment(self):
-        """S2501 货款 = 7.910 × 65000 = 514,150.00"""
-        mq = Decimal("7.910")
+        """S2501 货款 = 8.362 × 65000 = 543,530.00"""
+        mq = Decimal("8.362")
         price = Decimal("65000")
         payment = calc_element_payment(mq, price)
-        assert payment == Decimal("514150.00"), f"实际={payment}"
+        assert payment == Decimal("543530.00"), f"实际={payment}"
 
     def test_batch_s2502_dry_weight(self):
         """S2502 干重 = 48.780 × 0.89 = 43.4142"""
@@ -395,22 +374,22 @@ class TestScenario01Alignment:
         assert dry == Decimal("43.4142"), f"实际={dry}"
 
     def test_batch_s2502_metal_quantity(self):
-        """S2502 金属量 = 43.4142 × 0.1820 = 7.9013844 → 7.901"""
+        """S2502 金属量 = 43.4142 × 0.1920 = 8.3355264 → 8.336"""
         dry = Decimal("43.4142")
-        effective_pct = Decimal("18.20")  # 19.20 - 1.00
-        mq = calc_metal_quantity(dry, effective_pct)
-        assert mq == Decimal("7.901"), f"实际={mq}"
+        cu_pct = Decimal("19.20")
+        mq = calc_metal_quantity(dry, cu_pct)
+        assert mq == Decimal("8.336"), f"实际={mq}"
 
     def test_batch_s2502_payment(self):
-        """S2502 货款 = 7.901 × 65000 = 513,565.00"""
-        mq = Decimal("7.901")
+        """S2502 货款 = 8.336 × 65000 = 541,840.00"""
+        mq = Decimal("8.336")
         price = Decimal("65000")
         payment = calc_element_payment(mq, price)
-        assert payment == Decimal("513565.00"), f"实际={payment}"
+        assert payment == Decimal("541840.00"), f"实际={payment}"
 
     def test_total_element_payment(self):
-        """货款合计 = 514,150.00 + 513,565.00 = 1,027,715.00"""
-        total = Decimal("514150.00") + Decimal("513565.00")
+        """货款合计 = 543,530.00 + 541,840.00 = 1,085,370.00"""
+        total = Decimal("543530.00") + Decimal("541840.00")
         expected = Decimal(str(self.expected["summary"]["total_element_payment"]))
         assert total == expected, f"实际={total}，期望={expected}"
 

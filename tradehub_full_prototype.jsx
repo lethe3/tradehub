@@ -193,7 +193,7 @@ function StageEstimate() {
       <div>
         <div style={{ fontSize: 13, fontWeight: 600, color: T.muted, marginBottom: 12 }}>计价配方（草稿）</div>
         <div style={{ background: T.card, borderRadius: 8, padding: 14, border: `1px solid ${T.border}`, fontSize: 12, fontFamily: T.mono, color: T.muted, lineHeight: 2 }}>
-          <div>Cu: metal_content · grade_deduction(1%)</div>
+          <div>Cu: metal_content · fixed_price</div>
           <div>  └ tier_multiply(base_price) → 5档系数</div>
           <div>  └ segment_accumulate(cu_pct, anchor=18)</div>
           <div>Au: metal_content · tier_multiply(au_gt)</div>

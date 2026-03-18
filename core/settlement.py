@@ -16,7 +16,7 @@ M3D-1：结算计算引擎（固定计价）
 设计原则：
   - 纯函数，不 import feishu/ 或 ai/
   - 金额全程 Decimal + ROUND_HALF_UP
-  - M3D-1 仅实现 FIXED + GRADE_DEDUCTION；其余 formula_type 抛 NotImplementedError
+  - M3D-1 仅实现 FIXED + FIXED_PRICE；其余 formula_type 抛 NotImplementedError
 """
 from __future__ import annotations
 
@@ -66,17 +66,14 @@ def calc_dry_weight(wet_weight: Decimal, h2o_pct: Decimal) -> Decimal:
 def calc_metal_quantity(
     dry_weight: Decimal,
     assay_pct: Decimal,
-    grade_deduction: Decimal,
 ) -> Decimal:
-    """金属量 = 干重 × (有效品位 / 100)，保留 3 位小数，ROUND_HALF_UP。
+    """金属量 = 干重 × (化验品位 / 100)，保留 3 位小数，ROUND_HALF_UP。
 
     Args:
-        dry_weight:      干重（吨）
-        assay_pct:       化验品位（如 18.50 表示 18.50%）
-        grade_deduction: 品位扣减量（百分点，如 1.0 表示扣 1%）
+        dry_weight: 干重（吨）
+        assay_pct:  化验品位（如 18.50 表示 18.50%）
     """
-    effective_grade = assay_pct - grade_deduction
-    result = dry_weight * (effective_grade / Decimal("100"))
+    result = dry_weight * (assay_pct / Decimal("100"))
     return result.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
 
 
@@ -130,7 +127,7 @@ def generate_cash_flows(
     规则：
     - 合同 direction=="采购" → 货款方向为支出；"销售" → 收入
     - 若 contract_pricing.assay_fee_total 不为 None，追加化验费（支出）
-    - 支持 FIXED + GRADE_DEDUCTION 和 FIXED + FIXED_PRICE（元/吨、元/金属吨）
+    - 支持 FIXED_PRICE（元/吨、元/干吨、元/金属吨）
 
     Args:
         batch_view:        M3C 串联输出的批次视图
@@ -190,7 +187,7 @@ def generate_cash_flows(
                         raise ValueError(
                             f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
                         )
-                    metal_qty = calc_metal_quantity(dry_weight, assay_grade, Decimal("0"))
+                    metal_qty = calc_metal_quantity(dry_weight, assay_grade)
                     payment = calc_element_payment(metal_qty, pe.base_price)
                     records.append(CashFlowRecord(
                         contract_id=contract.contract_id,
@@ -208,33 +205,6 @@ def generate_cash_flows(
                     raise NotImplementedError(
                         f"FIXED_PRICE 不支持单位 {pe.unit}，仅支持元/吨 和 元/金属吨"
                     )
-
-            elif pe.formula_type == FormulaType.GRADE_DEDUCTION:
-                # 品位扣减公式
-                attr = _ELEMENT_ATTR.get(pe.element)
-                if attr is None:
-                    raise ValueError(f"未知计价元素：{pe.element}")
-                assay_grade = getattr(assay, attr, None)
-                if assay_grade is None:
-                    raise ValueError(
-                        f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
-                    )
-
-                metal_qty = calc_metal_quantity(dry_weight, assay_grade, pe.grade_deduction)
-                payment = calc_element_payment(metal_qty, pe.base_price)
-
-                records.append(CashFlowRecord(
-                    contract_id=contract.contract_id,
-                    flow_type=CashFlowType.ELEMENT_PAYMENT,
-                    direction=direction,
-                    element=pe.element,
-                    sample_id=unit.sample_id,
-                    dry_weight=dry_weight,
-                    metal_quantity=metal_qty,
-                    unit_price=pe.base_price,
-                    unit=pe.unit.value,
-                    amount=payment,
-                ))
 
             else:
                 raise NotImplementedError(
@@ -373,7 +343,7 @@ def generate_settlement_items(
                         raise ValueError(
                             f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
                         )
-                    metal_qty = calc_metal_quantity(dry_weight, assay_grade, Decimal("0"))
+                    metal_qty = calc_metal_quantity(dry_weight, assay_grade)
                     payment = calc_element_payment(metal_qty, pe.base_price)
                     items.append(SettlementItemRecord(
                         contract_id=contract.contract_id,
@@ -388,8 +358,6 @@ def generate_settlement_items(
                         h2o_pct=assay.h2o_pct,
                         dry_weight=dry_weight,
                         assay_grade=assay_grade,
-                        grade_deduction_val=Decimal("0"),
-                        effective_grade=assay_grade,
                         metal_quantity=metal_qty,
                         unit_price=pe.base_price,
                         unit=pe.unit.value,
@@ -399,39 +367,6 @@ def generate_settlement_items(
                     raise NotImplementedError(
                         f"FIXED_PRICE 不支持单位 {pe.unit}"
                     )
-
-            elif pe.formula_type == FormulaType.GRADE_DEDUCTION:
-                attr = _ELEMENT_ATTR.get(pe.element)
-                if attr is None:
-                    raise ValueError(f"未知计价元素：{pe.element}")
-                assay_grade = getattr(assay, attr, None)
-                if assay_grade is None:
-                    raise ValueError(
-                        f"样号 {unit.sample_id} 化验单缺少元素 {pe.element} 的品位数据"
-                    )
-                eff_grade = assay_grade - pe.grade_deduction
-                metal_qty = calc_metal_quantity(dry_weight, assay_grade, pe.grade_deduction)
-                payment = calc_element_payment(metal_qty, pe.base_price)
-                items.append(SettlementItemRecord(
-                    contract_id=contract.contract_id,
-                    sample_id=unit.sample_id,
-                    row_type=SettlementRowType.ELEMENT_PAYMENT,
-                    direction=direction,
-                    element=pe.element,
-                    pricing_basis=PricingBasis.METAL_QUANTITY,
-                    price_source=PriceSource.FIXED,
-                    price_formula=PriceFormula.GRADE_DEDUCTION,
-                    wet_weight=wet_weight,
-                    h2o_pct=assay.h2o_pct,
-                    dry_weight=dry_weight,
-                    assay_grade=assay_grade,
-                    grade_deduction_val=pe.grade_deduction,
-                    effective_grade=eff_grade,
-                    metal_quantity=metal_qty,
-                    unit_price=pe.base_price,
-                    unit=pe.unit.value,
-                    amount=payment,
-                ))
 
             else:
                 raise NotImplementedError(

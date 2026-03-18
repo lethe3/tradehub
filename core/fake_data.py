@@ -49,7 +49,6 @@ def generate_fake_contract_pricing(contract_id: str) -> ContractPricing:
     unit_types = [UnitType.CNY_PER_TON, UnitType.CNY_PER_METAL_TON]
     unit_type = random.choice(unit_types)
     base_price = Decimal(str(round(random.uniform(55000, 75000), 0)))
-    grade_deduction = Decimal("1.0") if unit_type == UnitType.CNY_PER_METAL_TON else Decimal("0")
 
     pe = PricingElement(
         element="Cu",
@@ -57,7 +56,6 @@ def generate_fake_contract_pricing(contract_id: str) -> ContractPricing:
         base_price=base_price,
         unit=unit_type,
         formula_type=FormulaType.FIXED_PRICE,
-        grade_deduction=grade_deduction,
     )
     return ContractPricing(
         contract_id=contract_id,

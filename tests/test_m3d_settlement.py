@@ -77,7 +77,6 @@ def load_scenario_01():
             base_price=Decimal(str(pe["base_price"])),
             unit=pe["unit"],
             formula_type=FormulaType(pe["formula_type"]),
-            grade_deduction=Decimal(str(pe["grade_deduction"])),
         ))
 
     contract_pricing = ContractPricing(
@@ -117,37 +116,37 @@ class TestCalcDryWeight:
 
 class TestCalcMetalQuantity:
     def test_scenario_01_s2501(self):
-        # 45.2025 × 0.1750 = 7.9104375 → 7.910
+        # 45.2025 × 0.1850 = 8.3624625 → 8.362（无扣减）
         result = calc_metal_quantity(
-            Decimal("45.2025"), Decimal("18.50"), Decimal("1.00")
+            Decimal("45.2025"), Decimal("18.50")
         )
-        assert result == Decimal("7.910")
+        assert result == Decimal("8.362")
 
     def test_scenario_01_s2502(self):
-        # 43.4142 × 0.1820 = 7.9013844 → 7.901
+        # 43.4142 × 0.1920 = 8.3355264 → 8.336（无扣减）
         result = calc_metal_quantity(
-            Decimal("43.4142"), Decimal("19.20"), Decimal("1.00")
+            Decimal("43.4142"), Decimal("19.20")
         )
-        assert result == Decimal("7.901")
+        assert result == Decimal("8.336")
 
     def test_rounding_3dp(self):
-        # 10.000 × 0.1855 = 1.8550 → 1.855
+        # 10.000 × 0.1955 = 1.9550 → 1.955（无扣减）
         result = calc_metal_quantity(
-            Decimal("10.000"), Decimal("19.55"), Decimal("1.00")
+            Decimal("10.000"), Decimal("19.55")
         )
-        assert result == Decimal("1.855")
+        assert result == Decimal("1.955")
 
 
 class TestCalcElementPayment:
     def test_scenario_01_s2501(self):
-        # 7.910 × 65000 = 514150.00
-        result = calc_element_payment(Decimal("7.910"), Decimal("65000"))
-        assert result == Decimal("514150.00")
+        # 8.362 × 65000 = 543530.00（无扣减）
+        result = calc_element_payment(Decimal("8.362"), Decimal("65000"))
+        assert result == Decimal("543530.00")
 
     def test_scenario_01_s2502(self):
-        # 7.901 × 65000 = 513565.00
-        result = calc_element_payment(Decimal("7.901"), Decimal("65000"))
-        assert result == Decimal("513565.00")
+        # 8.336 × 65000 = 541840.00（无扣减）
+        result = calc_element_payment(Decimal("8.336"), Decimal("65000"))
+        assert result == Decimal("541840.00")
 
     def test_rounding_2dp(self):
         # 1.001 × 3 = 3.003 → 3.00
@@ -174,18 +173,18 @@ class TestGenerateCashFlowsScenario01:
         assert r.direction == CashFlowDirection.EXPENSE
         assert r.element == "Cu"
         assert r.dry_weight == Decimal("45.2025")
-        assert r.metal_quantity == Decimal("7.910")
+        assert r.metal_quantity == Decimal("8.362")
         assert r.unit_price == Decimal("65000")
-        assert r.amount == Decimal("514150.00")
+        assert r.amount == Decimal("543530.00")
 
     def test_element_payment_s2502(self):
         r = next(x for x in self.records if x.flow_type == CashFlowType.ELEMENT_PAYMENT and x.sample_id == "S2502")
         assert r.direction == CashFlowDirection.EXPENSE
         assert r.element == "Cu"
         assert r.dry_weight == Decimal("43.4142")
-        assert r.metal_quantity == Decimal("7.901")
+        assert r.metal_quantity == Decimal("8.336")
         assert r.unit_price == Decimal("65000")
-        assert r.amount == Decimal("513565.00")
+        assert r.amount == Decimal("541840.00")
 
     def test_assay_fee(self):
         r = next(x for x in self.records if x.flow_type == CashFlowType.ASSAY_FEE)
@@ -237,8 +236,7 @@ class TestGenerateCashFlowsEdgeCases:
                     element="Cu",
                     price_source_type=PriceSourceType.FIXED,
                     base_price=Decimal("65000"),
-                    formula_type=FormulaType.GRADE_DEDUCTION,
-                    grade_deduction=Decimal("1.0"),
+                    formula_type=FormulaType.FIXED_PRICE,
                 )
             ],
             assay_fee_total=Decimal(str(assay_fee)) if assay_fee is not None else None,

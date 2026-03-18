@@ -143,8 +143,6 @@ class SettlementItemOut(BaseModel):
     h2o_pct: Optional[str] = None
     dry_weight: Optional[str] = None
     assay_grade: Optional[str] = None
-    grade_deduction_val: Optional[str] = None
-    effective_grade: Optional[str] = None
     metal_quantity: Optional[str] = None
     unit_price: Optional[str] = None
     unit: Optional[str] = None

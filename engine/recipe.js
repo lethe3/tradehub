@@ -140,9 +140,7 @@ export function evaluateRecipe(recipe, batchView, direction) {
         if (isNaN(assayGrade)) {
           throw new Error(`样号 ${unit.sampleId} 化验单缺少字段 ${gradeField}`);
         }
-        const gradeDeduction = Number(elem.quantity.gradeDeduction || 0);
-        const effGrade = assayGrade - gradeDeduction;
-        const metalQty = calcMetalQuantity(dryWeight, assayGrade, gradeDeduction);
+        const metalQty = calcMetalQuantity(dryWeight, assayGrade);
         const payment = calcElementPayment(metalQty, unitPrice);
 
         items.push({
@@ -155,8 +153,6 @@ export function evaluateRecipe(recipe, batchView, direction) {
           h2oPct,
           dryWeight,
           assayGrade,
-          gradeDeductionVal: gradeDeduction,
-          effectiveGrade: effGrade,
           metalQuantity: metalQty,
           unitPrice,
           unit: elem.unitPrice.unit,
@@ -293,7 +289,6 @@ export function adaptRecipe(apiRecipe) {
       quantity: {
         basis: elem.quantity?.basis || 'metal_quantity',
         gradeField: _snakeToCamel(elem.quantity?.grade_field),
-        gradeDeduction: elem.quantity?.grade_deduction || 0,
       },
       unitPrice: {
         source: elem.unit_price?.source || 'fixed',

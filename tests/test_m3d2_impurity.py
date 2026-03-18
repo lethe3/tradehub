@@ -85,7 +85,6 @@ def load_scenario_02():
             base_price=Decimal(str(pe["base_price"])),
             unit=pe["unit"],
             formula_type=FormulaType(pe["formula_type"]),
-            grade_deduction=Decimal(str(pe["grade_deduction"])),
         ))
 
     impurity_deductions = []
@@ -214,22 +213,22 @@ class TestGenerateCashFlowsScenario02:
         assert r.direction == CashFlowDirection.EXPENSE
         assert r.element == "Cu"
         assert r.dry_weight == Decimal("45.0000")
-        assert r.metal_quantity == Decimal("7.875")
-        assert r.amount == Decimal("511875.00")
+        assert r.metal_quantity == Decimal("8.325")
+        assert r.amount == Decimal("541125.00")
 
     def test_s2602_element_payment(self):
         r = next(x for x in self.records
                  if x.flow_type == CashFlowType.ELEMENT_PAYMENT and x.sample_id == "S2602")
         assert r.dry_weight == Decimal("40.0500")
-        assert r.metal_quantity == Decimal("7.289")
-        assert r.amount == Decimal("473785.00")
+        assert r.metal_quantity == Decimal("7.690")
+        assert r.amount == Decimal("499850.00")
 
     def test_s2603_element_payment(self):
         r = next(x for x in self.records
                  if x.flow_type == CashFlowType.ELEMENT_PAYMENT and x.sample_id == "S2603")
         assert r.dry_weight == Decimal("27.3000")
-        assert r.metal_quantity == Decimal("4.586")
-        assert r.amount == Decimal("298090.00")
+        assert r.metal_quantity == Decimal("4.859")
+        assert r.amount == Decimal("315835.00")
 
     def test_s2601_impurity_deduction(self):
         # As=0.40% → 第一档 → 50.000 × 20 = 1000.00
@@ -259,7 +258,7 @@ class TestGenerateCashFlowsScenario02:
             contract_number=self.batch_view.contract.contract_number,
             records=self.records,
         )
-        assert summary.total_expense == Decimal("1287000.00")
+        assert summary.total_expense == Decimal("1360060.00")
 
     def test_summary_total_income(self):
         summary = SettlementSummary.from_records(
@@ -303,7 +302,6 @@ class TestNoImpurityWhenRulesAbsent:
             base_price=Decimal(str(pe["base_price"])),
             unit=pe["unit"],
             formula_type=FormulaType(pe["formula_type"]),
-            grade_deduction=Decimal(str(pe["grade_deduction"])),
         ) for pe in p["pricing_elements"]]
 
         contract_pricing = ContractPricing(

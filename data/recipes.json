@@ -1,0 +1,146 @@
+[
+  {
+    "contract_id": "mock-contract-001",
+    "version": "1.0",
+    "elements": [
+      {
+        "name": "Cu",
+        "type": "element",
+        "quantity": {
+          "basis": "metal_quantity",
+          "grade_field": "cu_pct"
+        },
+        "unit_price": {
+          "source": "fixed",
+          "value": "65000",
+          "unit": "元/金属吨"
+        },
+        "operations": [],
+        "tiers": []
+      }
+    ],
+    "assay_fee": "2000.00",
+    "id": "abe6a093-30ba-474a-abc2-e6b65bf2be76"
+  },
+  {
+    "contract_id": "mock-contract-002",
+    "version": "1.0",
+    "elements": [
+      {
+        "name": "Cu",
+        "type": "element",
+        "quantity": {
+          "basis": "metal_quantity",
+          "grade_field": "cu_pct"
+        },
+        "unit_price": {
+          "source": "fixed",
+          "value": "65000",
+          "unit": "元/金属吨"
+        },
+        "operations": [],
+        "tiers": []
+      },
+      {
+        "name": "As",
+        "type": "deduction",
+        "quantity": {
+          "basis": "wet_weight",
+          "grade_field": "as_pct"
+        },
+        "unit_price": {
+          "source": "fixed",
+          "value": null,
+          "unit": "元/吨"
+        },
+        "operations": [],
+        "tiers": [
+          {
+            "lower": "0.30",
+            "upper": "0.50",
+            "rate": "20"
+          },
+          {
+            "lower": "0.50",
+            "upper": null,
+            "rate": "50"
+          }
+        ]
+      }
+    ],
+    "assay_fee": null,
+    "id": "2d786735-dd9e-4507-a66e-bfba543743cb"
+  },
+  {
+    "contract_id": "mock-contract-001",
+    "version": "1.0",
+    "elements": [
+      {
+        "name": "Cu",
+        "type": "element",
+        "quantity": {
+          "basis": "metal_quantity",
+          "grade_field": "cu_pct"
+        },
+        "unit_price": {
+          "source": "fixed",
+          "value": "65000",
+          "unit": "元/金属吨"
+        },
+        "operations": [],
+        "tiers": []
+      }
+    ],
+    "assay_fee": "2000.00",
+    "id": "6bd1fc1e-bdc7-481b-b20d-1e3790db9702"
+  },
+  {
+    "contract_id": "mock-contract-002",
+    "version": "1.0",
+    "elements": [
+      {
+        "name": "Cu",
+        "type": "element",
+        "quantity": {
+          "basis": "metal_quantity",
+          "grade_field": "cu_pct"
+        },
+        "unit_price": {
+          "source": "fixed",
+          "value": "65000",
+          "unit": "元/金属吨"
+        },
+        "operations": [],
+        "tiers": []
+      },
+      {
+        "name": "As",
+        "type": "deduction",
+        "quantity": {
+          "basis": "wet_weight",
+          "grade_field": "as_pct"
+        },
+        "unit_price": {
+          "source": "fixed",
+          "value": null,
+          "unit": "元/吨"
+        },
+        "operations": [],
+        "tiers": [
+          {
+            "lower": "0.30",
+            "upper": "0.50",
+            "rate": "20"
+          },
+          {
+            "lower": "0.50",
+            "upper": null,
+            "rate": "50"
+          }
+        ]
+      }
+    ],
+    "assay_fee": null,
+    "id": "1fc1a809-eb2e-4014-b3ef-95e97630a3c2"
+  }
+]

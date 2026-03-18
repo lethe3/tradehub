@@ -95,7 +95,7 @@ function ElementCard({ item }) {
       )}
       {item.metal_quantity && (
         <DataRow
-          label={`化验品位 ${fmt(item.assay_grade, 2)}% − 扣除 ${fmt(item.grade_deduction_val, 2)}% = ${fmt(item.effective_grade, 2)}%`}
+          label={`化验品位 ${fmt(item.assay_grade, 2)}%`}
           value={`金属量 = ${fmt(item.metal_quantity, 3)} 吨`}
           indent
         />

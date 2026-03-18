@@ -21,8 +21,7 @@ pricing:
       price_source_type: "fixed"
       base_price: 65000
       unit: "元/金属吨"
-      formula_type: "grade_deduction"
-      grade_deduction: 1.0
+      formula_type: "fixed_price"
 
   impurity_deductions:
     - element: "As"

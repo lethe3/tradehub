@@ -18,7 +18,7 @@ function makeElement(name = '') {
   return {
     name,
     type: 'element',
-    quantity: { basis: 'metal_quantity', grade_field: '', grade_deduction: '1.0' },
+    quantity: { basis: 'metal_quantity', grade_field: '' },
     unit_price: { source: 'fixed', value: '', unit: '元/金属吨' },
     operations: [],
     tiers: [],
@@ -29,7 +29,7 @@ function makeDeduction(name = '') {
   return {
     name,
     type: 'deduction',
-    quantity: { basis: 'wet_weight', grade_field: '', grade_deduction: '0' },
+    quantity: { basis: 'wet_weight', grade_field: '' },
     unit_price: { source: 'fixed', value: null, unit: '元/吨' },
     operations: [],
     tiers: [],
@@ -205,16 +205,7 @@ function ElementCard({ el, index, onChange, onRemove }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-        <div>
-          <FieldLabel>品位扣除值 (%)</FieldLabel>
-          <input
-            value={el.quantity.grade_deduction}
-            onChange={(e) => update('quantity.grade_deduction', e.target.value)}
-            placeholder="1.0"
-            style={inputStyle}
-          />
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
         <div>
           <FieldLabel>单价</FieldLabel>
           <input

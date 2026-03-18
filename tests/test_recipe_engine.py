@@ -27,12 +27,11 @@ from core.models.pricing import (
 from core.settlement import generate_settlement_items
 from engine.recipe import evaluate_recipe
 from engine.schema import (
-    PriceOperation,
-    QuantitySpec,
+    PriceStep,
+    QuantityStep,
     Recipe,
     RecipeElement,
     TierEntry,
-    UnitPriceSpec,
 )
 
 # ── Fixture 路径 ────────────────────────────────────────────
@@ -98,14 +97,14 @@ class TestScenario01:
         assert item.dry_weight == Decimal("45.2025")
 
     def test_s2501_metal_quantity(self):
-        """S2501 金属量 = 7.910。"""
+        """S2501 金属量 = 8.362（无扣减）。"""
         item = next(i for i in self.items if i.sample_id == "S2501")
-        assert item.metal_quantity == Decimal("7.910")
+        assert item.metal_quantity == Decimal("8.362")
 
     def test_s2501_payment(self):
-        """S2501 货款 = 514150.00。"""
+        """S2501 货款 = 543530.00。"""
         item = next(i for i in self.items if i.sample_id == "S2501")
-        assert item.amount == Decimal("514150.00")
+        assert item.amount == Decimal("543530.00")
 
     def test_s2502_dry_weight(self):
         """S2502 干重 = 43.4142。"""
@@ -113,14 +112,14 @@ class TestScenario01:
         assert item.dry_weight == Decimal("43.4142")
 
     def test_s2502_metal_quantity(self):
-        """S2502 金属量 = 7.901。"""
+        """S2502 金属量 = 8.336（无扣减）。"""
         item = next(i for i in self.items if i.sample_id == "S2502")
-        assert item.metal_quantity == Decimal("7.901")
+        assert item.metal_quantity == Decimal("8.336")
 
     def test_s2502_payment(self):
-        """S2502 货款 = 513565.00。"""
+        """S2502 货款 = 541840.00。"""
         item = next(i for i in self.items if i.sample_id == "S2502")
-        assert item.amount == Decimal("513565.00")
+        assert item.amount == Decimal("541840.00")
 
     def test_all_expense_direction(self):
         """采购合同所有元素货款方向为 EXPENSE。"""
@@ -128,9 +127,9 @@ class TestScenario01:
         assert all(i.direction == SettlementDirection.EXPENSE for i in self.items)
 
     def test_total_element_payment(self):
-        """元素货款合计 = 1027715.00。"""
+        """元素货款合计 = 1085370.00（无扣减）。"""
         total = sum(i.amount for i in self.items)
-        assert total == Decimal("1027715.00")
+        assert total == Decimal("1085370.00")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -152,31 +151,31 @@ class TestScenario02:
         assert len(self.items) == 5
 
     def test_s2601_cu_payment(self):
-        """S2601 Cu 货款 = 511875.00。"""
+        """S2601 Cu 货款 = 541125.00（无扣减）。"""
         from core.models.settlement_item import SettlementRowType
         item = next(
             i for i in self.items
             if i.sample_id == "S2601" and i.row_type == SettlementRowType.ELEMENT_PAYMENT
         )
-        assert item.amount == Decimal("511875.00")
+        assert item.amount == Decimal("541125.00")
 
     def test_s2602_cu_payment(self):
-        """S2602 Cu 货款 = 473785.00。"""
+        """S2602 Cu 货款 = 499850.00（无扣减）。"""
         from core.models.settlement_item import SettlementRowType
         item = next(
             i for i in self.items
             if i.sample_id == "S2602" and i.row_type == SettlementRowType.ELEMENT_PAYMENT
         )
-        assert item.amount == Decimal("473785.00")
+        assert item.amount == Decimal("499850.00")
 
     def test_s2603_cu_payment(self):
-        """S2603 Cu 货款 = 298090.00。"""
+        """S2603 Cu 货款 = 315835.00（无扣减）。"""
         from core.models.settlement_item import SettlementRowType
         item = next(
             i for i in self.items
             if i.sample_id == "S2603" and i.row_type == SettlementRowType.ELEMENT_PAYMENT
         )
-        assert item.amount == Decimal("298090.00")
+        assert item.amount == Decimal("315835.00")
 
     def test_s2601_as_deduction(self):
         """S2601 As=0.40%，落第一档，扣款 = 50.000×20 = 1000.00。"""
@@ -206,10 +205,10 @@ class TestScenario02:
         assert len(deduction_items) == 0
 
     def test_total_cu_payment(self):
-        """Cu 货款合计 = 1283750.00。"""
+        """Cu 货款合计 = 1356810.00（无扣减）。"""
         from core.models.settlement_item import SettlementRowType
         total = sum(i.amount for i in self.items if i.row_type == SettlementRowType.ELEMENT_PAYMENT)
-        assert total == Decimal("1283750.00")
+        assert total == Decimal("1356810.00")
 
     def test_total_deduction(self):
         """As 扣款合计 = 3250.00。"""
@@ -231,8 +230,7 @@ def _build_contract_pricing_01() -> ContractPricing:
                 price_source_type=PriceSourceType.FIXED,
                 base_price=Decimal("65000"),
                 unit=UnitType.CNY_PER_METAL_TON,
-                formula_type=FormulaType.GRADE_DEDUCTION,
-                grade_deduction=Decimal("1.0"),
+                formula_type=FormulaType.FIXED_PRICE,
             )
         ],
         impurity_deductions=[],
@@ -249,8 +247,7 @@ def _build_contract_pricing_02() -> ContractPricing:
                 price_source_type=PriceSourceType.FIXED,
                 base_price=Decimal("65000"),
                 unit=UnitType.CNY_PER_METAL_TON,
-                formula_type=FormulaType.GRADE_DEDUCTION,
-                grade_deduction=Decimal("1.0"),
+                formula_type=FormulaType.FIXED_PRICE,
             )
         ],
         impurity_deductions=[

@@ -67,8 +67,6 @@ SETTLEMENT_ITEMS = {
     "h2o_pct": "H2O(%)",
     "dry_weight": "干重(吨)",
     "assay_grade": "化验品位",
-    "grade_deduction": "品位扣减",
-    "effective_grade": "有效品位",
     "metal_quantity": "金属量(吨)",
     "unit_price": "单价",
     "unit": "单价单位",

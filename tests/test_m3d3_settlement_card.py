@@ -79,7 +79,6 @@ def load_scenario_01() -> SettlementSummary:
             base_price=Decimal(str(pe["base_price"])),
             unit=pe["unit"],
             formula_type=FormulaType(pe["formula_type"]),
-            grade_deduction=Decimal(str(pe["grade_deduction"])),
         )
         for pe in p["pricing_elements"]
     ]
@@ -130,7 +129,6 @@ def load_scenario_02() -> SettlementSummary:
             base_price=Decimal(str(pe["base_price"])),
             unit=pe["unit"],
             formula_type=FormulaType(pe["formula_type"]),
-            grade_deduction=Decimal(str(pe["grade_deduction"])),
         )
         for pe in p["pricing_elements"]
     ]
@@ -191,8 +189,8 @@ class TestSettlementCard:
     def test_card_amounts_scenario01(self):
         summary = load_scenario_01()
         card_json = build_settlement_card(summary)
-        assert "514,150.00" in card_json
-        assert "513,565.00" in card_json
+        assert "543,530.00" in card_json
+        assert "541,840.00" in card_json
 
     def test_card_assay_fee_scenario01(self):
         summary = load_scenario_01()
@@ -202,8 +200,8 @@ class TestSettlementCard:
     def test_card_summary_scenario01(self):
         summary = load_scenario_01()
         card_json = build_settlement_card(summary)
-        # total_expense = 514,150 + 513,565 + 2,000 = 1,029,715
-        assert "1,029,715.00" in card_json
+        # total_expense = 543530 + 541840 + 2000 = 1,087,370
+        assert "1,087,370.00" in card_json
 
     def test_card_has_impurity_section_scenario02(self):
         summary = load_scenario_02()

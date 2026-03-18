@@ -351,8 +351,6 @@ def _item_to_out(item: Any) -> SettlementItemOut:
         h2o_pct=_d(item.h2o_pct),
         dry_weight=_d(item.dry_weight),
         assay_grade=_d(item.assay_grade),
-        grade_deduction_val=_d(item.grade_deduction_val),
-        effective_grade=_d(item.effective_grade),
         metal_quantity=_d(item.metal_quantity),
         unit_price=_d(item.unit_price),
         unit=item.unit,

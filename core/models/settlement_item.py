@@ -44,7 +44,6 @@ class PriceSource(str, Enum):
 class PriceFormula(str, Enum):
     """单价公式"""
     FIXED_PRICE = "固定单价"
-    GRADE_DEDUCTION = "品位扣减"
     COEFFICIENT = "系数法"
 
 
@@ -71,8 +70,6 @@ class SettlementItemRecord(BaseModel):
     h2o_pct: Optional[Decimal] = None              # H2O(%)
     dry_weight: Optional[Decimal] = None           # 干重(吨)，计算得
     assay_grade: Optional[Decimal] = None          # 化验品位
-    grade_deduction_val: Optional[Decimal] = None  # 品位扣减（合同约定）
-    effective_grade: Optional[Decimal] = None      # 有效品位 = 化验 - 扣减
     metal_quantity: Optional[Decimal] = None       # 金属量(吨)，计算得
     unit_price: Optional[Decimal] = None           # 单价
     unit: Optional[str] = None                     # 单价单位

@@ -27,7 +27,6 @@ class PriceSourceType(str, Enum):
 class FormulaType(str, Enum):
     """计价公式类型（轴二）"""
     FIXED_PRICE = "fixed_price"       # 固定单价（与品位无关）
-    GRADE_DEDUCTION = "grade_deduction"  # 品位扣减：有效品位 = 品位 - 扣减量
     COEFFICIENT = "coefficient"       # 系数：有效品位 = 品位 × 系数（留接口）
     SEGMENTED = "segmented"           # 分段（留接口）
 
@@ -47,30 +46,17 @@ class PricingElement(BaseModel):
         price_source_type = "fixed"
         base_price = 65000       # 元/金属吨
         unit = "元/金属吨"
-        formula_type = "grade_deduction"
-        grade_deduction = Decimal("1.0")   # 有效 Cu% = 化验 Cu% - 1.0%
+        formula_type = "fixed_price"
     """
     element: str                            # Cu / Au / Ag / Pb / Zn / 无
     # 轴一：基准价
     price_source_type: PriceSourceType = PriceSourceType.FIXED
     base_price: Decimal                     # 基准价数值
     # 轴二：计价公式
-    formula_type: FormulaType = FormulaType.GRADE_DEDUCTION
+    formula_type: FormulaType = FormulaType.FIXED_PRICE
     unit: UnitType = UnitType.CNY_PER_METAL_TON
-    # 品位扣减参数（formula_type = grade_deduction 时有效）
-    grade_deduction: Decimal = Decimal("0")  # 品位扣减量（百分点）
     # 系数参数（formula_type = coefficient 时有效，暂留接口）
     grade_coefficient: Optional[Decimal] = None  # 有效品位 = 品位 × 系数
-
-    def effective_grade(self, assay_grade: Decimal) -> Decimal:
-        """计算有效品位（百分数，如 17.50 表示 17.50%）"""
-        if self.formula_type == FormulaType.GRADE_DEDUCTION:
-            return assay_grade - self.grade_deduction
-        if self.formula_type == FormulaType.COEFFICIENT:
-            if self.grade_coefficient is None:
-                raise ValueError(f"系数计价需要设置 grade_coefficient，元素: {self.element}")
-            return assay_grade * self.grade_coefficient
-        raise NotImplementedError(f"公式类型 {self.formula_type} 暂未实现")
 
 
 class ImpurityDeductionTier(BaseModel):

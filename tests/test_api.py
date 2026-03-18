@@ -167,7 +167,7 @@ def test_upsert_and_get_recipe(client: TestClient) -> None:
             {
                 "name": "Cu",
                 "type": "element",
-                "quantity": {"basis": "metal_quantity", "grade_field": "cu_pct", "grade_deduction": "1.0"},
+                "quantity": {"basis": "metal_quantity", "grade_field": "cu_pct"},
                 "unit_price": {"source": "fixed", "value": "65000", "unit": "元/金属吨"},
                 "operations": [],
                 "tiers": [],
@@ -215,17 +215,17 @@ def test_settlement_scenario_01(client: TestClient) -> None:
     items = result["items"]
     summary = result["summary"]
 
-    # 验证元素货款合计 = 1027715.00
-    assert summary["total_element_payment"] == "1027715.00"
+    # 验证元素货款合计 = 1085370.00
+    assert summary["total_element_payment"] == "1085370.00"
 
     # 验证 S2501 货款
     s2501 = next(i for i in items if i["sample_id"] == "S2501")
-    assert s2501["amount"] == "514150.00"
-    assert s2501["metal_quantity"] == "7.910"
+    assert s2501["amount"] == "543530.00"
+    assert s2501["metal_quantity"] == "8.362"
 
     # 验证 S2502 货款
     s2502 = next(i for i in items if i["sample_id"] == "S2502")
-    assert s2502["amount"] == "513565.00"
+    assert s2502["amount"] == "541840.00"
 
 
 def test_settlement_scenario_02(client: TestClient) -> None:
@@ -243,12 +243,12 @@ def test_settlement_scenario_02(client: TestClient) -> None:
     items = result["items"]
     summary = result["summary"]
 
-    # Cu 货款合计 = 1283750.00
-    assert summary["total_element_payment"] == "1283750.00"
+    # Cu 货款合计 = 1356810.00
+    assert summary["total_element_payment"] == "1356810.00"
     # 杂质扣款合计 = 3250.00
     assert summary["total_impurity_deduction"] == "3250.00"
 
-    # S2601 杂质扣款 = 1000.00
+    # S2601 杂质扣款 = 1000.00 (50t × 20)
     deduction_items = [i for i in items if i["row_type"] == "杂质扣款"]
     s2601_ded = next(i for i in deduction_items if i["sample_id"] == "S2601")
     assert s2601_ded["amount"] == "1000.00"
