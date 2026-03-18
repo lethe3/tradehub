@@ -1,0 +1,98 @@
+[
+  {
+    "id": "mock-ar-001",
+    "contract_id": "mock-contract-001",
+    "sample_id": "S2501",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "18.50",
+    "h2o_pct": "10.00"
+  },
+  {
+    "id": "mock-ar-002",
+    "contract_id": "mock-contract-001",
+    "sample_id": "S2502",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "19.20",
+    "h2o_pct": "11.00"
+  },
+  {
+    "id": "mock-ar-201",
+    "contract_id": "mock-contract-002",
+    "sample_id": "S2601",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "18.50",
+    "as_pct": "0.40",
+    "h2o_pct": "10.00"
+  },
+  {
+    "id": "mock-ar-202",
+    "contract_id": "mock-contract-002",
+    "sample_id": "S2602",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "19.20",
+    "as_pct": "0.55",
+    "h2o_pct": "11.00"
+  },
+  {
+    "id": "mock-ar-203",
+    "contract_id": "mock-contract-002",
+    "sample_id": "S2603",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "17.80",
+    "as_pct": "0.20",
+    "h2o_pct": "9.00"
+  },
+  {
+    "id": "mock-ar-001",
+    "contract_id": "mock-contract-001",
+    "sample_id": "S2501",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "18.50",
+    "h2o_pct": "10.00"
+  },
+  {
+    "id": "mock-ar-002",
+    "contract_id": "mock-contract-001",
+    "sample_id": "S2502",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "19.20",
+    "h2o_pct": "11.00"
+  },
+  {
+    "id": "mock-ar-201",
+    "contract_id": "mock-contract-002",
+    "sample_id": "S2601",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "18.50",
+    "as_pct": "0.40",
+    "h2o_pct": "10.00"
+  },
+  {
+    "id": "mock-ar-202",
+    "contract_id": "mock-contract-002",
+    "sample_id": "S2602",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "19.20",
+    "as_pct": "0.55",
+    "h2o_pct": "11.00"
+  },
+  {
+    "id": "mock-ar-203",
+    "contract_id": "mock-contract-002",
+    "sample_id": "S2603",
+    "is_settlement": true,
+    "assay_type": "结算化验",
+    "cu_pct": "17.80",
+    "as_pct": "0.20",
+    "h2o_pct": "9.00"
+  }
+]

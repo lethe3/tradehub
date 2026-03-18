@@ -24,11 +24,11 @@ from decimal import Decimal
 from typing import Optional
 
 from core import get_dispatcher, HandlerResult
-from core.fake_data import generate_fake_contract, generate_fake_contract_pricing, generate_fake_weigh_tickets, generate_fake_assay_report
+from core.fake_data import generate_fake_contract, generate_fake_recipe, generate_fake_weigh_tickets, generate_fake_assay_report
 from core.models.batch import AssayReportRecord, BatchUnit, BatchView, ContractRecord, WeighTicketRecord
-from core.models.pricing import ContractPricing
 from core.models.settlement_item import SettlementItemRecord
-from core.settlement import generate_settlement_items
+from engine.recipe import evaluate_recipe
+from engine.schema import Recipe
 from feishu.bot import FeishuBot, ImageMessage, TextMessage
 from feishu.cards import CardTemplate, create_card_template, parse_card_callback
 from feishu.bitable import BitableTable
@@ -236,7 +236,7 @@ class MessageHandler:
         # 假数据流内存状态（最近一次生成的合同/磅单/化验单）
         self._last_contract_record_id: Optional[str] = None
         self._last_contract_data: Optional[dict] = None
-        self._last_contract_pricing: Optional[ContractPricing] = None
+        self._last_recipe: Optional[Recipe] = None
         self._last_weigh_tickets: list[dict] = []   # 含 _sample_id, _record_id
         self._last_assay_reports: list[dict] = []    # 含 _sample_id, _record_id
 
@@ -338,16 +338,17 @@ class MessageHandler:
             record_id = table.create(data)
             self._last_contract_record_id = record_id
             self._last_contract_data = data
-            self._last_contract_pricing = generate_fake_contract_pricing(record_id)
+            self._last_recipe = generate_fake_recipe(record_id)
             self._last_weigh_tickets = []
             self._last_assay_reports = []
-            pe = self._last_contract_pricing.pricing_elements[0]
+            cu_elem = self._last_recipe.elements[0]
+            price_step = next(s for s in cu_elem.price_pipeline if s.op == "fixed")
             url = table.record_url(record_id)
             return (
                 f"✅ 合同已录入，请点击链接核对：\n{url}\n\n"
                 f"  合同编号：{data['合同编号']}\n"
                 f"  方向：{data['合同方向']}\n"
-                f"  计价：Cu {float(pe.base_price):,.0f} {pe.unit.value}\n"
+                f"  计价：Cu {float(price_step.value):,.0f} {cu_elem.unit}\n"
                 f"  化验费：{data['化验费']:,.0f} 元（{data['化验费承担方']}承担）"
             )
         except Exception as e:
@@ -400,7 +401,7 @@ class MessageHandler:
         """用内存数据计算结算 → 写入结算明细表 → 返回记录链接"""
         if not self._last_contract_data:
             return "⚠️ 请先依次发送「合同」→「磅单」→「化验单」，再触发结算"
-        if not self._last_contract_pricing:
+        if not self._last_recipe:
             return "⚠️ 缺少计价规则，请重新发送「合同」"
         if not self._last_weigh_tickets:
             return "⚠️ 缺少磅单数据，请先发送「磅单」"
@@ -408,7 +409,7 @@ class MessageHandler:
             return "⚠️ 缺少化验单数据，请先发送「化验单」"
         try:
             cd = self._last_contract_data
-            contract_pricing = self._last_contract_pricing
+            recipe = self._last_recipe
 
             # 构建 ContractRecord（仅需 settlement 必要字段）
             contract_rec = ContractRecord(
@@ -458,7 +459,7 @@ class MessageHandler:
                 ))
 
             batch_view = BatchView(contract=contract_rec, batch_units=batch_units)
-            items = generate_settlement_items(batch_view, contract_pricing)
+            items = evaluate_recipe(recipe, batch_view, cd["合同方向"])
 
             # 写入结算明细表，返回各条记录链接
             si_table = BitableTable(table_name="settlement_items")

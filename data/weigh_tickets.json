@@ -1,0 +1,32 @@
+[
+  {
+    "id": "mock-wt-002",
+    "ticket_number": "WT-2025-002",
+    "contract_id": "mock-contract-001",
+    "commodity": "铜精矿",
+    "wet_weight": "48.780",
+    "sample_id": "S2502",
+    "weighing_date": "2025-02-11",
+    "vehicle_number": "浙A-67890",
+    "gross_weight": "57.120",
+    "tare_weight": "8.340",
+    "deduction_weight": "0.000",
+    "is_settlement": true,
+    "price_group": null
+  },
+  {
+    "id": "mock-wt-002",
+    "ticket_number": "WT-2025-002",
+    "contract_id": "mock-contract-001",
+    "commodity": "铜精矿",
+    "wet_weight": "48.780",
+    "sample_id": "S2502",
+    "weighing_date": "2025-02-11",
+    "vehicle_number": "浙A-67890",
+    "gross_weight": "57.120",
+    "tare_weight": "8.340",
+    "deduction_weight": "0.000",
+    "is_settlement": true,
+    "price_group": null
+  }
+]

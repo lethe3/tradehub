@@ -13,151 +13,125 @@ M3D-3 结算单卡片渲染测试
 from __future__ import annotations
 
 import json
-from datetime import date
 from decimal import Decimal
-from pathlib import Path
 
-import pytest
-import yaml
-
-from core.linking import build_batch_view
-from core.models.batch import (
-    AssayReportRecord,
-    ContractRecord,
-    WeighTicketRecord,
+from core.models.cash_flow import (
+    CashFlowDirection,
+    CashFlowRecord,
+    CashFlowType,
+    SettlementSummary,
 )
-from core.models.cash_flow import SettlementSummary
-from core.models.pricing import (
-    ContractPricing,
-    FormulaType,
-    ImpurityDeduction,
-    ImpurityDeductionTier,
-    PricingElement,
-    PriceSourceType,
-)
-from core.settlement import generate_cash_flows
 from feishu.settlement_card import build_settlement_card
 
-SCENARIO_01 = Path(__file__).parent / "fixtures" / "mock_documents" / "scenario_01"
-SCENARIO_02 = Path(__file__).parent / "fixtures" / "mock_documents" / "scenario_02"
 
+# ── Fixture 构造工具 ──────────────────────────────────────────
 
-# ── Fixture 加载工具 ──────────────────────────────────────────
+def _make_scenario_01_summary() -> SettlementSummary:
+    """场景一：2 条货款 + 1 条化验费（采购，无杂质扣款）。
 
-def _load_yaml(path: Path, filename: str) -> dict:
-    with open(path / filename, encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def load_scenario_01() -> SettlementSummary:
-    raw_contract = _load_yaml(SCENARIO_01, "contract.yaml")
-    raw_tickets = _load_yaml(SCENARIO_01, "weigh_tickets.yaml")["weigh_tickets"]
-    raw_reports = _load_yaml(SCENARIO_01, "assay_reports.yaml")["assay_reports"]
-
-    contract = ContractRecord(
-        contract_id=raw_contract["contract_id"],
-        contract_number=raw_contract["contract_number"],
-        direction=raw_contract["direction"],
-        commodity=raw_contract["commodity"],
-        counterparty=raw_contract["counterparty"],
-        signing_date=date.fromisoformat(raw_contract["signing_date"]),
-        tax_included=raw_contract.get("tax_included"),
-        freight_bearer=raw_contract.get("freight_bearer"),
-        assay_fee_bearer=raw_contract.get("assay_fee_bearer"),
-        pricing_elements=raw_contract.get("pricing_elements", []),
-    )
-
-    tickets = [WeighTicketRecord(**t) for t in raw_tickets]
-    reports = [AssayReportRecord(**r) for r in raw_reports]
-    batch_view, _ = build_batch_view(contract, tickets, reports)
-
-    p = raw_contract["pricing"]
-    pricing_elements = [
-        PricingElement(
-            element=pe["element"],
-            price_source_type=PriceSourceType(pe["price_source_type"]),
-            base_price=Decimal(str(pe["base_price"])),
-            unit=pe["unit"],
-            formula_type=FormulaType(pe["formula_type"]),
-        )
-        for pe in p["pricing_elements"]
+    S2501: 干重 45.2025t，金属量 8.362t，货款 543530.00 元
+    S2502: 干重 43.4142t，金属量 8.336t，货款 541840.00 元
+    化验费: 2000.00 元（我方承担）
+    """
+    records = [
+        CashFlowRecord(
+            contract_id="mock-contract-001",
+            flow_type=CashFlowType.ELEMENT_PAYMENT,
+            direction=CashFlowDirection.EXPENSE,
+            element="Cu",
+            sample_id="S2501",
+            dry_weight=Decimal("45.2025"),
+            metal_quantity=Decimal("8.362"),
+            unit_price=Decimal("65000"),
+            unit="元/金属吨",
+            amount=Decimal("543530.00"),
+        ),
+        CashFlowRecord(
+            contract_id="mock-contract-001",
+            flow_type=CashFlowType.ELEMENT_PAYMENT,
+            direction=CashFlowDirection.EXPENSE,
+            element="Cu",
+            sample_id="S2502",
+            dry_weight=Decimal("43.4142"),
+            metal_quantity=Decimal("8.336"),
+            unit_price=Decimal("65000"),
+            unit="元/金属吨",
+            amount=Decimal("541840.00"),
+        ),
+        CashFlowRecord(
+            contract_id="mock-contract-001",
+            flow_type=CashFlowType.ASSAY_FEE,
+            direction=CashFlowDirection.EXPENSE,
+            element=None,
+            amount=Decimal("2000.00"),
+        ),
     ]
-
-    contract_pricing = ContractPricing(
-        contract_id=raw_contract["contract_id"],
-        dry_weight_formula=p.get("dry_weight_formula", "wet * (1 - h2o)"),
-        pricing_elements=pricing_elements,
-        assay_fee_total=Decimal(str(p["assay_fee_total"])) if p.get("assay_fee_total") is not None else None,
-    )
-
-    records = generate_cash_flows(batch_view, contract_pricing)
     return SettlementSummary.from_records(
-        contract_id=contract.contract_id,
-        contract_number=contract.contract_number,
+        contract_id="mock-contract-001",
+        contract_number="HT-2025-001",
         records=records,
     )
 
 
-def load_scenario_02() -> SettlementSummary:
-    raw_contract = _load_yaml(SCENARIO_02, "contract.yaml")
-    raw_tickets = _load_yaml(SCENARIO_02, "weigh_tickets.yaml")["weigh_tickets"]
-    raw_reports = _load_yaml(SCENARIO_02, "assay_reports.yaml")["assay_reports"]
-
-    contract = ContractRecord(
-        contract_id=raw_contract["contract_id"],
-        contract_number=raw_contract["contract_number"],
-        direction=raw_contract["direction"],
-        commodity=raw_contract["commodity"],
-        counterparty=raw_contract["counterparty"],
-        signing_date=date.fromisoformat(raw_contract["signing_date"]),
-        tax_included=raw_contract.get("tax_included"),
-        freight_bearer=raw_contract.get("freight_bearer"),
-        assay_fee_bearer=raw_contract.get("assay_fee_bearer"),
-        pricing_elements=raw_contract.get("pricing_elements", []),
-    )
-
-    tickets = [WeighTicketRecord(**t) for t in raw_tickets]
-    reports = [AssayReportRecord(**r) for r in raw_reports]
-    batch_view, _ = build_batch_view(contract, tickets, reports)
-
-    p = raw_contract["pricing"]
-
-    pricing_elements = [
-        PricingElement(
-            element=pe["element"],
-            price_source_type=PriceSourceType(pe["price_source_type"]),
-            base_price=Decimal(str(pe["base_price"])),
-            unit=pe["unit"],
-            formula_type=FormulaType(pe["formula_type"]),
-        )
-        for pe in p["pricing_elements"]
+def _make_scenario_02_summary() -> SettlementSummary:
+    """场景二：3 条货款 + 2 条杂质扣款（采购，As 两档阶梯）。"""
+    records = [
+        CashFlowRecord(
+            contract_id="mock-contract-002",
+            flow_type=CashFlowType.ELEMENT_PAYMENT,
+            direction=CashFlowDirection.EXPENSE,
+            element="Cu",
+            sample_id="S2601",
+            dry_weight=Decimal("45.0000"),
+            metal_quantity=Decimal("8.325"),
+            unit_price=Decimal("65000"),
+            unit="元/金属吨",
+            amount=Decimal("541125.00"),
+        ),
+        CashFlowRecord(
+            contract_id="mock-contract-002",
+            flow_type=CashFlowType.ELEMENT_PAYMENT,
+            direction=CashFlowDirection.EXPENSE,
+            element="Cu",
+            sample_id="S2602",
+            dry_weight=Decimal("40.0500"),
+            metal_quantity=Decimal("7.690"),
+            unit_price=Decimal("65000"),
+            unit="元/金属吨",
+            amount=Decimal("499850.00"),
+        ),
+        CashFlowRecord(
+            contract_id="mock-contract-002",
+            flow_type=CashFlowType.ELEMENT_PAYMENT,
+            direction=CashFlowDirection.EXPENSE,
+            element="Cu",
+            sample_id="S2603",
+            dry_weight=Decimal("27.3000"),
+            metal_quantity=Decimal("4.859"),
+            unit_price=Decimal("65000"),
+            unit="元/金属吨",
+            amount=Decimal("315835.00"),
+        ),
+        CashFlowRecord(
+            contract_id="mock-contract-002",
+            flow_type=CashFlowType.IMPURITY_DEDUCTION,
+            direction=CashFlowDirection.EXPENSE,
+            element="As",
+            sample_id="S2601",
+            amount=Decimal("1000.00"),
+        ),
+        CashFlowRecord(
+            contract_id="mock-contract-002",
+            flow_type=CashFlowType.IMPURITY_DEDUCTION,
+            direction=CashFlowDirection.EXPENSE,
+            element="As",
+            sample_id="S2602",
+            amount=Decimal("2250.00"),
+        ),
     ]
-
-    impurity_deductions = []
-    for imp in p.get("impurity_deductions", []):
-        tiers = [
-            ImpurityDeductionTier(
-                lower=Decimal(str(t["lower"])),
-                upper=Decimal(str(t["upper"])) if t.get("upper") is not None else None,
-                rate=Decimal(str(t["rate"])),
-                upper_open=t.get("upper_open", True),
-            )
-            for t in imp["tiers"]
-        ]
-        impurity_deductions.append(ImpurityDeduction(element=imp["element"], tiers=tiers))
-
-    contract_pricing = ContractPricing(
-        contract_id=raw_contract["contract_id"],
-        dry_weight_formula=p.get("dry_weight_formula", "wet * (1 - h2o)"),
-        pricing_elements=pricing_elements,
-        impurity_deductions=impurity_deductions,
-        assay_fee_total=Decimal(str(p["assay_fee_total"])) if p.get("assay_fee_total") is not None else None,
-    )
-
-    records = generate_cash_flows(batch_view, contract_pricing)
     return SettlementSummary.from_records(
-        contract_id=contract.contract_id,
-        contract_number=contract.contract_number,
+        contract_id="mock-contract-002",
+        contract_number="HT-2025-002",
         records=records,
     )
 
@@ -169,53 +143,53 @@ def load_scenario_02() -> SettlementSummary:
 class TestSettlementCard:
 
     def test_card_is_valid_json(self):
-        summary = load_scenario_01()
+        summary = _make_scenario_01_summary()
         card_json = build_settlement_card(summary)
         parsed = json.loads(card_json)
         assert isinstance(parsed, dict)
 
     def test_card_header_scenario01(self):
-        summary = load_scenario_01()
+        summary = _make_scenario_01_summary()
         card_json = build_settlement_card(summary)
         parsed = json.loads(card_json)
         header_content = parsed["header"]["title"]["content"]
         assert "HT-2025-001" in header_content
 
     def test_card_has_element_section_scenario01(self):
-        summary = load_scenario_01()
+        summary = _make_scenario_01_summary()
         card_json = build_settlement_card(summary)
         assert "元素货款" in card_json
 
     def test_card_amounts_scenario01(self):
-        summary = load_scenario_01()
+        summary = _make_scenario_01_summary()
         card_json = build_settlement_card(summary)
         assert "543,530.00" in card_json
         assert "541,840.00" in card_json
 
     def test_card_assay_fee_scenario01(self):
-        summary = load_scenario_01()
+        summary = _make_scenario_01_summary()
         card_json = build_settlement_card(summary)
         assert "2,000.00" in card_json
 
     def test_card_summary_scenario01(self):
-        summary = load_scenario_01()
+        summary = _make_scenario_01_summary()
         card_json = build_settlement_card(summary)
         # total_expense = 543530 + 541840 + 2000 = 1,087,370
         assert "1,087,370.00" in card_json
 
     def test_card_has_impurity_section_scenario02(self):
-        summary = load_scenario_02()
+        summary = _make_scenario_02_summary()
         card_json = build_settlement_card(summary)
         assert "杂质扣款" in card_json
 
     def test_card_impurity_amounts_scenario02(self):
-        summary = load_scenario_02()
+        summary = _make_scenario_02_summary()
         card_json = build_settlement_card(summary)
         assert "1,000.00" in card_json
         assert "2,250.00" in card_json
 
     def test_no_impurity_section_when_none(self):
-        summary = load_scenario_01()
+        summary = _make_scenario_01_summary()
         card_json = build_settlement_card(summary)
         assert "杂质扣款" not in card_json
 

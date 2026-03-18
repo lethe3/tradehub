@@ -1,0 +1,54 @@
+[
+  {
+    "id": "mock-contract-001",
+    "contract_number": "HT-2025-001",
+    "direction": "采购",
+    "counterparty": "某铜矿供应商",
+    "commodity": "铜精矿",
+    "signing_date": "2025-01-15",
+    "tax_included": false,
+    "freight_bearer": "对方",
+    "assay_fee_bearer": "我方",
+    "settlement_ticket_rule": "收货方磅单",
+    "settlement_assay_rule": "双方平均化验"
+  },
+  {
+    "id": "mock-contract-002",
+    "contract_number": "HT-2026-002",
+    "direction": "采购",
+    "counterparty": "某铜矿供应商B",
+    "commodity": "铜精矿",
+    "signing_date": "2026-01-10",
+    "tax_included": false,
+    "freight_bearer": "对方",
+    "assay_fee_bearer": "对方",
+    "settlement_ticket_rule": "收货方磅单",
+    "settlement_assay_rule": "双方平均化验"
+  },
+  {
+    "id": "mock-contract-001",
+    "contract_number": "HT-2025-001",
+    "direction": "采购",
+    "counterparty": "某铜矿供应商",
+    "commodity": "铜精矿",
+    "signing_date": "2025-01-15",
+    "tax_included": false,
+    "freight_bearer": "对方",
+    "assay_fee_bearer": "我方",
+    "settlement_ticket_rule": "收货方磅单",
+    "settlement_assay_rule": "双方平均化验"
+  },
+  {
+    "id": "mock-contract-002",
+    "contract_number": "HT-2026-002",
+    "direction": "采购",
+    "counterparty": "某铜矿供应商B",
+    "commodity": "铜精矿",
+    "signing_date": "2026-01-10",
+    "tax_included": false,
+    "freight_bearer": "对方",
+    "assay_fee_bearer": "对方",
+    "settlement_ticket_rule": "收货方磅单",
+    "settlement_assay_rule": "双方平均化验"
+  }
+]

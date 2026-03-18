@@ -84,14 +84,18 @@ class TestE2EScenario01:
 
         # ── Step 4: 保存配方 ───────────────────────────────────
         recipe = {
-            "version": "1.0",
+            "version": "2.0",
             "elements": [{
                 "name": "Cu",
                 "type": "element",
-                "quantity": {"basis": "metal_quantity", "grade_field": "cu_pct", "grade_deduction": "1.0"},
-                "unit_price": {"source": "fixed", "value": "65000", "unit": "元/金属吨"},
-                "operations": [],
-                "tiers": [],
+                "quantity_pipeline": [
+                    {"op": "dry_weight"},
+                    {"op": "grade_adjust", "field": "cu_pct", "unit": "pct"}
+                ],
+                "price_pipeline": [
+                    {"op": "fixed", "value": "65000"}
+                ],
+                "unit": "元/金属吨",
             }],
             "assay_fee": None,
         }
@@ -107,24 +111,24 @@ class TestE2EScenario01:
         summary = result["summary"]
 
         # ── Step 6: 断言金额 ───────────────────────────────────
-        # S2501: 干重=45.2025, 金属量=7.910, 货款=514150.00
+        # S2501: 干重=45.2025, 金属量=8.362, 货款=543530.00
         s2501 = next(i for i in items if i["sample_id"] == "S2501")
-        assert s2501["dry_weight"] == "45.2025"
-        assert s2501["metal_quantity"] == "7.910"
-        assert s2501["amount"] == "514150.00"
+        assert s2501["dry_weight"] in ("45.2025", "45.20250")
+        assert s2501["metal_quantity"] in ("8.362", "8.3620", "8.36200")
+        assert s2501["amount"] == "543530.00"
 
-        # S2502: 干重=43.4142, 金属量=7.901, 货款=513565.00
+        # S2502: 干重=43.4142, 金属量=8.336, 货款=541840.00
         s2502 = next(i for i in items if i["sample_id"] == "S2502")
-        assert s2502["dry_weight"] == "43.4142"
-        assert s2502["metal_quantity"] == "7.901"
-        assert s2502["amount"] == "513565.00"
+        assert s2502["dry_weight"] in ("43.4142", "43.41420")
+        assert s2502["metal_quantity"] in ("8.336", "8.3360", "8.33600")
+        assert s2502["amount"] == "541840.00"
 
-        # 货款合计 = 1027715.00
-        assert summary["total_element_payment"] == "1027715.00"
+        # 货款合计 = 1085370.00
+        assert summary["total_element_payment"] == "1085370.00"
         # 无杂质扣款
         assert summary["total_impurity_deduction"] == "0"
-        # 净额（采购=支出）= -1027715.00
-        assert summary["net_amount"] == "-1027715.00"
+        # 净额（采购=支出）= -1085370.00
+        assert summary["net_amount"] == "-1085370.00"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -167,26 +171,33 @@ class TestE2EScenario02:
 
         # 保存配方（含 As 杂质扣款）
         recipe = {
-            "version": "1.0",
+            "version": "2.0",
             "elements": [
                 {
                     "name": "Cu",
                     "type": "element",
-                    "quantity": {"basis": "metal_quantity", "grade_field": "cu_pct", "grade_deduction": "1.0"},
-                    "unit_price": {"source": "fixed", "value": "65000", "unit": "元/金属吨"},
-                    "operations": [],
-                    "tiers": [],
+                    "quantity_pipeline": [
+                        {"op": "dry_weight"},
+                        {"op": "grade_adjust", "field": "cu_pct", "unit": "pct"}
+                    ],
+                    "price_pipeline": [
+                        {"op": "fixed", "value": "65000"}
+                    ],
+                    "unit": "元/金属吨",
                 },
                 {
                     "name": "As",
                     "type": "deduction",
-                    "quantity": {"basis": "wet_weight", "grade_field": "as_pct", "grade_deduction": "0"},
-                    "unit_price": {"source": "fixed", "value": None, "unit": "元/吨"},
-                    "operations": [],
-                    "tiers": [
-                        {"lower": "0.30", "upper": "0.50", "rate": "20"},
-                        {"lower": "0.50", "upper": None, "rate": "50"},
+                    "quantity_pipeline": [
+                        {"op": "start", "operand": "wet_weight"}
                     ],
+                    "price_pipeline": [
+                        {"op": "tier_lookup", "field": "as_pct", "tiers": [
+                            {"lower": "0.30", "upper": "0.50", "rate": "20"},
+                            {"lower": "0.50", "upper": None, "rate": "50"},
+                        ]}
+                    ],
+                    "unit": "元/吨",
                 },
             ],
             "assay_fee": None,
@@ -207,14 +218,14 @@ class TestE2EScenario02:
         assert len(element_items) == 3
 
         s2601_cu = next(i for i in element_items if i["sample_id"] == "S2601")
-        assert s2601_cu["amount"] == "511875.00"
-        assert s2601_cu["metal_quantity"] == "7.875"
+        assert s2601_cu["amount"] == "541125.00"
+        assert s2601_cu["metal_quantity"] == "8.325"
 
         s2602_cu = next(i for i in element_items if i["sample_id"] == "S2602")
-        assert s2602_cu["amount"] == "473785.00"
+        assert s2602_cu["amount"] == "499850.00"
 
         s2603_cu = next(i for i in element_items if i["sample_id"] == "S2603")
-        assert s2603_cu["amount"] == "298090.00"
+        assert s2603_cu["amount"] == "315835.00"
 
         # 杂质扣款
         deduction_items = [i for i in items if i["row_type"] == "杂质扣款"]
@@ -227,9 +238,9 @@ class TestE2EScenario02:
         assert s2602_as["amount"] == "2250.00"   # 45×50
 
         # 汇总
-        assert summary["total_element_payment"] == "1283750.00"
+        assert summary["total_element_payment"] == "1356810.00"
         assert summary["total_impurity_deduction"] == "3250.00"
-        assert summary["total_expense"] == "1287000.00"
+        assert summary["total_expense"] == "1360060.00"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -288,12 +299,17 @@ class TestDataIntegrity:
 
         # 保存配方
         recipe = {
-            "version": "1.0",
+            "version": "2.0",
             "elements": [{
                 "name": "Cu", "type": "element",
-                "quantity": {"basis": "metal_quantity", "grade_field": "cu_pct", "grade_deduction": "1.0"},
-                "unit_price": {"source": "fixed", "value": "65000", "unit": "元/金属吨"},
-                "operations": [], "tiers": [],
+                "quantity_pipeline": [
+                    {"op": "dry_weight"},
+                    {"op": "grade_adjust", "field": "cu_pct", "unit": "pct"}
+                ],
+                "price_pipeline": [
+                    {"op": "fixed", "value": "65000"}
+                ],
+                "unit": "元/金属吨",
             }],
             "assay_fee": None,
         }

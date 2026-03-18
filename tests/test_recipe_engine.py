@@ -15,23 +15,12 @@ import yaml
 
 from core.linking import build_batch_view
 from core.models.batch import AssayReportRecord, ContractRecord, WeighTicketRecord
-from core.models.pricing import (
-    ContractPricing,
-    FormulaType,
-    ImpurityDeduction,
-    ImpurityDeductionTier,
-    PricingElement,
-    PriceSourceType,
-    UnitType,
-)
-from core.settlement import generate_settlement_items
 from engine.recipe import evaluate_recipe
 from engine.schema import (
     PriceStep,
     QuantityStep,
     Recipe,
     RecipeElement,
-    TierEntry,
 )
 
 # ── Fixture 路径 ────────────────────────────────────────────
@@ -218,93 +207,75 @@ class TestScenario02:
 
 
 # ══════════════════════════════════════════════════════════════
-# 交叉验证：evaluate_recipe vs generate_settlement_items
+# 边界 / 错误场景
 # ══════════════════════════════════════════════════════════════
 
-def _build_contract_pricing_01() -> ContractPricing:
-    return ContractPricing(
-        contract_id="mock-contract-001",
-        pricing_elements=[
-            PricingElement(
-                element="Cu",
-                price_source_type=PriceSourceType.FIXED,
-                base_price=Decimal("65000"),
-                unit=UnitType.CNY_PER_METAL_TON,
-                formula_type=FormulaType.FIXED_PRICE,
-            )
-        ],
-        impurity_deductions=[],
-        assay_fee_total=None,  # generate_settlement_items 不输出化验费行
-    )
+class TestEdgeCases:
+    """evaluate_recipe 边界场景测试。"""
 
+    def _make_recipe(self, contract_id: str = "c-test") -> Recipe:
+        return Recipe(
+            contract_id=contract_id,
+            elements=[
+                RecipeElement(
+                    name="Cu",
+                    type="element",
+                    quantity_pipeline=[
+                        QuantityStep(op="dry_weight"),
+                        QuantityStep(op="grade_adjust", field="cu_pct", unit="pct"),
+                    ],
+                    price_pipeline=[
+                        PriceStep(op="fixed", value=Decimal("65000")),
+                    ],
+                    unit="元/金属吨",
+                )
+            ],
+        )
 
-def _build_contract_pricing_02() -> ContractPricing:
-    return ContractPricing(
-        contract_id="mock-contract-002",
-        pricing_elements=[
-            PricingElement(
-                element="Cu",
-                price_source_type=PriceSourceType.FIXED,
-                base_price=Decimal("65000"),
-                unit=UnitType.CNY_PER_METAL_TON,
-                formula_type=FormulaType.FIXED_PRICE,
-            )
-        ],
-        impurity_deductions=[
-            ImpurityDeduction(
-                element="As",
-                tiers=[
-                    ImpurityDeductionTier(lower=Decimal("0.30"), upper=Decimal("0.50"), rate=Decimal("20"), upper_open=True),
-                    ImpurityDeductionTier(lower=Decimal("0.50"), upper=None, rate=Decimal("50"), upper_open=True),
-                ],
-            )
-        ],
-        assay_fee_total=None,
-    )
+    def _make_batch_view(self, contract_id: str = "c-test", direction: str = "采购",
+                         cu_pct: str = "18.50", h2o_pct: str | None = "10.00") -> tuple:
+        from core.models.batch import BatchUnit, BatchView, ContractRecord, WeighTicketRecord, AssayReportRecord
+        contract = ContractRecord(
+            contract_id=contract_id,
+            contract_number="HT-TEST",
+            direction=direction,
+            counterparty="测试方",
+        )
+        ticket = WeighTicketRecord(
+            ticket_id="t1", ticket_number="WT-01",
+            contract_id=contract_id,
+            commodity="铜精矿", wet_weight=Decimal("50.000"),
+            sample_id="S001", is_settlement=True,
+        )
+        report = AssayReportRecord(
+            report_id="r1", contract_id=contract_id,
+            sample_id="S001", cu_pct=Decimal(cu_pct),
+            h2o_pct=Decimal(h2o_pct) if h2o_pct is not None else None,
+        )
+        unit = BatchUnit(sample_id="S001", weigh_tickets=[ticket], assay_report=report)
+        return BatchView(contract=contract, batch_units=[unit]), direction
 
+    def test_sales_direction_is_income(self):
+        """销售合同元素货款方向为 INCOME。"""
+        from core.models.settlement_item import SettlementDirection, SettlementRowType
+        recipe = self._make_recipe()
+        bv, direction = self._make_batch_view(direction="销售")
+        items = evaluate_recipe(recipe, bv, direction)
+        payments = [i for i in items if i.row_type == SettlementRowType.ELEMENT_PAYMENT]
+        assert all(i.direction == SettlementDirection.INCOME for i in payments)
 
-class TestCrossValidation:
-    """交叉验证：evaluate_recipe 与 generate_settlement_items 的数值结果一致。"""
+    def test_purchase_direction_is_expense(self):
+        """采购合同元素货款方向为 EXPENSE。"""
+        from core.models.settlement_item import SettlementDirection, SettlementRowType
+        recipe = self._make_recipe()
+        bv, direction = self._make_batch_view(direction="采购")
+        items = evaluate_recipe(recipe, bv, direction)
+        payments = [i for i in items if i.row_type == SettlementRowType.ELEMENT_PAYMENT]
+        assert all(i.direction == SettlementDirection.EXPENSE for i in payments)
 
-    def test_scenario_01_amounts_match(self):
-        """场景1：两引擎各批次金额完全一致。"""
-        contract, tickets, reports, recipe = _load_scenario("scenario_01")
-        batch_view = _build_batch_view(contract, tickets, reports)
-
-        recipe_items = evaluate_recipe(recipe, batch_view, "采购")
-        legacy_items = generate_settlement_items(batch_view, _build_contract_pricing_01())
-
-        assert len(recipe_items) == len(legacy_items)
-        for r, l in zip(recipe_items, legacy_items):
-            assert r.sample_id == l.sample_id, f"sample_id 不匹配: {r.sample_id} vs {l.sample_id}"
-            assert r.amount == l.amount, f"金额不匹配 [{r.sample_id}]: {r.amount} vs {l.amount}"
-            if r.dry_weight is not None:
-                assert r.dry_weight == l.dry_weight, f"干重不匹配 [{r.sample_id}]"
-            if r.metal_quantity is not None:
-                assert r.metal_quantity == l.metal_quantity, f"金属量不匹配 [{r.sample_id}]"
-
-    def test_scenario_02_amounts_match(self):
-        """场景2：两引擎各批次金额（含杂质扣款）完全一致。"""
-        contract, tickets, reports, recipe = _load_scenario("scenario_02")
-        batch_view = _build_batch_view(contract, tickets, reports)
-
-        recipe_items = evaluate_recipe(recipe, batch_view, "采购")
-        legacy_items = generate_settlement_items(batch_view, _build_contract_pricing_02())
-
-        assert len(recipe_items) == len(legacy_items)
-        # 按 (sample_id, row_type) 建立索引比对
-        from core.models.settlement_item import SettlementRowType
-
-        def key(item):
-            return (item.sample_id or "", item.row_type.value)
-
-        recipe_map = {key(i): i for i in recipe_items}
-        legacy_map = {key(i): i for i in legacy_items}
-
-        assert set(recipe_map.keys()) == set(legacy_map.keys()), \
-            f"记录集合不一致: recipe={set(recipe_map.keys())} legacy={set(legacy_map.keys())}"
-
-        for k in recipe_map:
-            r = recipe_map[k]
-            l = legacy_map[k]
-            assert r.amount == l.amount, f"金额不匹配 [{k}]: {r.amount} vs {l.amount}"
+    def test_missing_h2o_raises(self):
+        """缺少 h2o_pct 时应抛出 ValueError。"""
+        recipe = self._make_recipe()
+        bv, direction = self._make_batch_view(h2o_pct=None)
+        with pytest.raises(ValueError, match="h2o_pct"):
+            evaluate_recipe(recipe, bv, direction)

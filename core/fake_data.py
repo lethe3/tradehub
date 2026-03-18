@@ -11,7 +11,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from core.models.pricing import ContractPricing, FormulaType, PricingElement, PriceSourceType, UnitType
+from engine.schema import PriceStep, QuantityStep, Recipe, RecipeElement
 
 
 def _today_ms() -> int:
@@ -26,7 +26,7 @@ def _rand_suffix(n: int = 4) -> str:
 def generate_fake_contract() -> dict[str, Any]:
     """生成一条假合同记录（字段名 = Bitable 列名）。
 
-    仅包含合同本体字段（不含计价细节，计价规则由 generate_fake_contract_pricing 单独生成）。
+    仅包含合同本体字段（不含计价细节，计价规则由 generate_fake_recipe 单独生成）。
     """
     contract_no = f"HT-MOCK-{date.today().strftime('%Y%m%d')}-{_rand_suffix()}"
     return {
@@ -40,28 +40,36 @@ def generate_fake_contract() -> dict[str, Any]:
     }
 
 
-def generate_fake_contract_pricing(contract_id: str) -> ContractPricing:
-    """生成假合同计价规则（用于结算测试，不写入 Bitable）。
+def generate_fake_recipe(contract_id: str) -> Recipe:
+    """生成假合同计价配方（用于结算测试，不写入 Bitable）。
 
     Args:
         contract_id: 合同 Bitable record_id
     """
-    unit_types = [UnitType.CNY_PER_TON, UnitType.CNY_PER_METAL_TON]
-    unit_type = random.choice(unit_types)
     base_price = Decimal(str(round(random.uniform(55000, 75000), 0)))
 
-    pe = PricingElement(
-        element="Cu",
-        price_source_type=PriceSourceType.FIXED,
-        base_price=base_price,
-        unit=unit_type,
-        formula_type=FormulaType.FIXED_PRICE,
-    )
-    return ContractPricing(
+    return Recipe(
         contract_id=contract_id,
-        pricing_elements=[pe],
-        assay_fee_total=Decimal("2000"),  # 化验费我方承担
+        elements=[
+            RecipeElement(
+                name="Cu",
+                type="element",
+                quantity_pipeline=[
+                    QuantityStep(op="dry_weight"),
+                    QuantityStep(op="grade_adjust", field="cu_pct", unit="pct"),
+                ],
+                price_pipeline=[
+                    PriceStep(op="fixed", value=base_price),
+                ],
+                unit="元/金属吨",
+            )
+        ],
+        assay_fee=Decimal("2000"),
     )
+
+
+# 向后兼容别名
+generate_fake_contract_pricing = generate_fake_recipe
 
 
 def generate_fake_weigh_tickets(contract_record_id: str, count: int = 2) -> list[dict[str, Any]]:

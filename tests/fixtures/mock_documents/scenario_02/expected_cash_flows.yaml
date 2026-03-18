@@ -28,31 +28,31 @@
 # S2603：As = 0.20%，低于下限 0.30%     → 不扣款
 
 # ── 汇总 ──────────────────────────────────────────────────
-# Cu 货款合计 = 511,875.00 + 473,785.00 + 298,090.00 = 1,283,750.00
+# Cu 货款合计 = 541125.00 + 499850.00 + 315835.00 = 1,356,810.00（无扣减）
 # 杂质扣款合计 = 1,000.00 + 2,250.00 = 3,250.00
-# 总支出 = 1,283,750.00 + 3,250.00 = 1,287,000.00
+# 总支出 = 1,356,810.00 + 3,250.00 = 1,360,060.00
 
 element_payments:
   - sample_id: "S2601"
     element: "Cu"
     dry_weight: "45.0000"
-    metal_quantity: "7.875"
+    metal_quantity: "8.325"
     unit_price: "65000"
-    amount: "511875.00"
+    amount: "541125.00"
 
   - sample_id: "S2602"
     element: "Cu"
     dry_weight: "40.0500"
-    metal_quantity: "7.289"
+    metal_quantity: "7.690"
     unit_price: "65000"
-    amount: "473785.00"
+    amount: "499850.00"
 
   - sample_id: "S2603"
     element: "Cu"
     dry_weight: "27.3000"
-    metal_quantity: "4.586"
+    metal_quantity: "4.859"
     unit_price: "65000"
-    amount: "298090.00"
+    amount: "315835.00"
 
 impurity_deductions:
   - sample_id: "S2601"
@@ -64,5 +64,5 @@ impurity_deductions:
     amount: "2250.00"
 
 summary:
-  total_expense: "1287000.00"
+  total_expense: "1360060.00"  # 1356810(货款) + 3250(扣款)
   total_income: "0.00"

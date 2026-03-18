@@ -35,20 +35,20 @@ batch_calculations:
     h2o_pct: "10.00"
     dry_weight: "45.2025"          # 50.225 × 0.90，精确值
     cu_assay_pct: "18.50"
-    cu_effective_pct: "17.50"      # 18.50 - 1.00
-    metal_quantity_cu: "7.910"     # 45.2025 × 0.1750 = 7.9104375 → 四舍五入
+    cu_effective_pct: "18.50"       # 无扣减
+    metal_quantity_cu: "8.362"      # 45.2025 × 0.1850 = 8.3624625 → 四舍五入
     unit_price: "65000"
-    element_payment: "514150.00"   # 7.910 × 65000
+    element_payment: "543530.00"    # 8.362 × 65000
 
   - sample_id: "S2502"
     wet_weight: "48.780"
     h2o_pct: "11.00"
     dry_weight: "43.4142"          # 48.780 × 0.89，精确值
     cu_assay_pct: "19.20"
-    cu_effective_pct: "18.20"      # 19.20 - 1.00
-    metal_quantity_cu: "7.901"     # 43.4142 × 0.1820 = 7.9013844 → 四舍五入
+    cu_effective_pct: "19.20"      # 无扣减
+    metal_quantity_cu: "8.336"      # 43.4142 × 0.1920 = 8.3355264 → 四舍五入
     unit_price: "65000"
-    element_payment: "513565.00"   # 7.901 × 65000
+    element_payment: "541840.00"   # 8.336 × 65000
 
 expected_cash_flows:
   - flow_type: "元素货款"
@@ -56,20 +56,20 @@ expected_cash_flows:
     element: "Cu"
     sample_id: "S2501"
     dry_weight: "45.2025"
-    metal_quantity: "7.910"
+    metal_quantity: "8.362"
     unit_price: "65000"
     unit: "元/金属吨"
-    amount: "514150.00"
+    amount: "543530.00"
 
   - flow_type: "元素货款"
     direction: "支出"
     element: "Cu"
     sample_id: "S2502"
     dry_weight: "43.4142"
-    metal_quantity: "7.901"
+    metal_quantity: "8.336"
     unit_price: "65000"
     unit: "元/金属吨"
-    amount: "513565.00"
+    amount: "541840.00"
 
   - flow_type: "化验费"
     direction: "支出"
@@ -77,8 +77,8 @@ expected_cash_flows:
     amount: "2000.00"
 
 summary:
-  total_element_payment: "1027715.00"   # 514150 + 513565
+  total_element_payment: "1085370.00"   # 543530 + 541840（无扣减）
   total_assay_fee: "2000.00"
-  total_expense: "1029715.00"           # 货款 + 化验费
+  total_expense: "1087370.00"           # 货款 + 化验费
   total_income: "0.00"
-  net_amount: "-1029715.00"             # 支出净额（负数）
+  net_amount: "-1087370.00"             # 支出净额（负数）

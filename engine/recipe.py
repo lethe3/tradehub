@@ -1,20 +1,23 @@
 """
-Python Recipe Evaluator — 正式结算引擎（Decimal 精度）
+Python Recipe Evaluator — 管道公式版本（Phase 2）
+
+核心理念：金额 = 数量 × 单价
+- 数量管道：从 wet_weight 开始，经过零或多步变换
+- 单价管道：从输入（固定价/基准价）开始，经过零或多步变换
 
 核心函数：
   evaluate_recipe(recipe, batch_view, direction) -> list[SettlementItemRecord]
 
 设计原则：
-  - 复用 core/settlement.py 的底层计算函数，不重复实现
-  - 不替换 core/settlement.py，两者并存，fixture 交叉验证一致性
+  - 通用管道执行器，支持任意变换组合
   - 金额全程 Decimal + ROUND_HALF_UP
-  - direction 参数接受 "采购" 或 "销售"（与 ContractRecord.direction 一致）
+  - direction 参数接受 "采购" 或 "销售"
 """
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
-from core.models.batch import BatchView
+from core.models.batch import BatchUnit, BatchView
 from core.models.settlement_item import (
     PricingBasis,
     PriceFormula,
@@ -23,30 +26,140 @@ from core.models.settlement_item import (
     SettlementItemRecord,
     SettlementRowType,
 )
-from core.settlement import (
-    calc_dry_weight,
-    calc_element_payment,
-    calc_impurity_amount,
-    calc_metal_quantity,
-    find_impurity_tier,
-)
 
-from .schema import Recipe, RecipeElement, TierEntry
+from .schema import PriceStep, QuantityStep, Recipe, TierEntry
 
 
-# ── 计价基准映射 ────────────────────────────────────────────────
-_BASIS_MAP = {
-    "wet_weight": PricingBasis.WET_WEIGHT,
-    "dry_weight": PricingBasis.DRY_WEIGHT,
-    "metal_quantity": PricingBasis.METAL_QUANTITY,
-}
+# ══════════════════════════════════════════════════════════════
+# 数量管道执行器
+# ══════════════════════════════════════════════════════════════
 
-# ── 杂质扣款阶梯适配（RecipeElement.tiers → ImpurityDeductionTier）────
-# recipe.TierEntry 与 core.models.pricing.ImpurityDeductionTier 字段一致，
-# 但为了不引入 core/models/pricing 依赖，直接用 recipe.TierEntry 做档位查找。
+def _execute_quantity_pipeline(
+    pipeline: list[QuantityStep],
+    batch_unit: BatchUnit,
+) -> tuple[Decimal, dict]:
+    """执行数量管道，返回最终数量和中间值
+
+    Returns:
+        (最终数量, 中间值字典) - 中间值包含 dry_weight, metal_quantity 等
+    """
+    wet_weight = batch_unit.total_wet_weight
+    assay = batch_unit.assay_report
+    h2o = assay.h2o_pct or Decimal("0")
+
+    # 中间值记录
+    intermediates: dict = {}
+
+    # 当前累积值
+    current: Decimal | None = None
+
+    for i, step in enumerate(pipeline):
+        if step.op == "start":
+            if step.operand == "wet_weight":
+                current = wet_weight
+            elif step.operand == "dry_weight":
+                # 单独计算干重并记录
+                current = wet_weight * (Decimal("1") - h2o / Decimal("100"))
+                intermediates["dry_weight"] = current
+            else:
+                raise ValueError(f"未知 operand: {step.operand}")
+
+        elif step.op == "dry_weight":
+            # 计算干重：wet × (1 - h2o/100)
+            current = wet_weight * (Decimal("1") - h2o / Decimal("100"))
+            intermediates["dry_weight"] = current
+
+        elif step.op == "multiply_field":
+            field = step.field
+            if field is None:
+                raise ValueError("multiply_field 需要指定 field")
+
+            # 获取字段值
+            field_value: Decimal | None = getattr(assay, field, None)
+            if field_value is None:
+                raise ValueError(f"化验单缺少字段: {field}")
+
+            factor = step.factor if step.factor is not None else Decimal("1")
+
+            if current is None:
+                # 如果还没有累积值，直接用字段值
+                current = field_value * factor
+            else:
+                # 乘法：current × field_value × factor
+                current = current * field_value * factor
+
+        elif step.op == "grade_adjust":
+            """品位计算：计算金属量 = 干重 × 品位
+
+            - unit="pct": 金属量 = 干重 × 品位 ÷ 100
+            - unit="gpt": 金属量 = 干重 × 品位（不转换）
+            """
+            field = step.field
+            if field is None:
+                raise ValueError("grade_adjust 需要指定 field")
+
+            field_value: Decimal | None = getattr(assay, field, None)
+            if field_value is None:
+                raise ValueError(f"化验单缺少字段: {field}")
+
+            if current is None:
+                raise ValueError("grade_adjust 前需要有累积值（干重）")
+
+            # 根据单位决定是否转换
+            if step.unit == "pct":
+                # % 单位：除以 100
+                current = current * field_value / Decimal("100")
+            elif step.unit == "gpt" or step.unit is None:
+                # g/t 单位：不转换
+                current = current * field_value
+            else:
+                raise ValueError(f"grade_adjust 不支持的单位: {step.unit}")
+
+            intermediates["metal_quantity"] = current
+
+        elif step.op == "subtract":
+            if step.value is None:
+                raise ValueError("subtract 需要指定 value")
+            if current is None:
+                raise ValueError("subtract 前需要有累积值")
+            current = current - step.value
+
+        elif step.op == "add":
+            if step.value is None:
+                raise ValueError("add 需要指定 value")
+            if current is None:
+                raise ValueError("add 前需要有累积值")
+            current = current + step.value
+
+        elif step.op == "multiply":
+            if step.value is None:
+                raise ValueError("multiply 需要指定 value")
+            if current is None:
+                raise ValueError("multiply 前需要有累积值")
+            current = current * step.value
+
+        elif step.op == "divide":
+            if step.value is None or step.value == Decimal("0"):
+                raise ValueError("divide 需要指定非零 value")
+            if current is None:
+                raise ValueError("divide 前需要有累积值")
+            current = current / step.value
+
+        else:
+            raise ValueError(f"未知数量操作: {step.op}")
+
+    if current is None:
+        raise ValueError("数量管道为空")
+
+    return current.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP), intermediates
+
+
+# ══════════════════════════════════════════════════════════════
+# 单价管道执行器
+# ══════════════════════════════════════════════════════════════
 
 def _find_tier(grade: Decimal, tiers: list[TierEntry]) -> TierEntry | None:
-    """与 core.settlement.find_impurity_tier 等效的 TierEntry 版本。
+    """查找品位对应的阶梯档位
 
     区间规则：lower 含（闭），upper 不含（开）。
     最高档 upper=None 表示无上限。
@@ -61,6 +174,70 @@ def _find_tier(grade: Decimal, tiers: list[TierEntry]) -> TierEntry | None:
     return None
 
 
+def _execute_price_pipeline(
+    pipeline: list[PriceStep],
+    batch_unit: BatchUnit,
+) -> tuple[Decimal, str | None]:
+    """执行单价管道，返回最终单价和字段名
+
+    Returns:
+        (最终单价, 品位字段名或None)
+    """
+    assay = batch_unit.assay_report
+
+    current: Decimal | None = None
+    grade_field: str | None = None
+
+    for step in pipeline:
+        if step.op == "fixed":
+            if step.value is None:
+                raise ValueError("fixed 需要指定 value")
+            current = step.value
+
+        elif step.op == "multiply":
+            if step.factor is None:
+                raise ValueError("multiply 需要指定 factor")
+            if current is None:
+                raise ValueError("multiply 前需要有累积值")
+            current = current * step.factor
+
+        elif step.op == "subtract":
+            if step.factor is None:
+                raise ValueError("subtract 需要指定 factor")
+            if current is None:
+                raise ValueError("subtract 前需要有累积值")
+            current = current - step.factor
+
+        elif step.op == "tier_lookup":
+            field = step.field
+            if field is None:
+                raise ValueError("tier_lookup 需要指定 field")
+            if step.tiers is None:
+                raise ValueError("tier_lookup 需要指定 tiers")
+
+            grade_field = field
+
+            # 获取字段值（品位）
+            grade: Decimal | None = getattr(assay, field, None)
+            if grade is None:
+                raise ValueError(f"化验单缺少字段: {field}")
+
+            tier = _find_tier(grade, step.tiers)
+            if tier is None:
+                # 品位未落入任何档位，单价为 0
+                current = Decimal("0")
+            else:
+                current = tier.rate
+
+        else:
+            raise ValueError(f"未知单价操作: {step.op}")
+
+    if current is None:
+        raise ValueError("单价管道为空")
+
+    return current.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), grade_field
+
+
 # ══════════════════════════════════════════════════════════════
 # 主函数
 # ══════════════════════════════════════════════════════════════
@@ -71,11 +248,11 @@ def evaluate_recipe(
     direction: str,
 ) -> list[SettlementItemRecord]:
     """
-    用 Recipe 对 BatchView 中的每个批次单元计算结算明细。
+    用 Recipe（管道公式版本）对 BatchView 中的每个批次单元计算结算明细。
 
     Args:
-        recipe:      合同计价配方
-        batch_view:  M3C 串联输出的批次视图
+        recipe:      合同计价配方（管道版本）
+        batch_view:  批次视图
         direction:   合同方向（"采购" 或 "销售"）
 
     Returns:
@@ -84,8 +261,7 @@ def evaluate_recipe(
           - 再输出各杂质扣款行（按 recipe.elements 顺序）
 
     异常：
-        ValueError  — 化验单缺少必要字段、元素名未识别
-        NotImplementedError — unit_price.source 不为 "fixed" 或未实现的 operations
+        ValueError  — 化验单缺少必要字段、步骤参数错误
     """
     settle_direction = (
         SettlementDirection.EXPENSE if direction == "采购"
@@ -94,158 +270,117 @@ def evaluate_recipe(
 
     items: list[SettlementItemRecord] = []
 
-    # ── 元素货款（type="element"）─────────────────────────────
     element_items = [e for e in recipe.elements if e.type == "element"]
     deduction_items = [e for e in recipe.elements if e.type == "deduction"]
 
     for unit in batch_view.batch_units:
         assay = unit.assay_report
         wet_weight = unit.total_wet_weight
+        h2o_pct = assay.h2o_pct
 
-        if assay.h2o_pct is None:
+        # 验证必要字段
+        if h2o_pct is None:
             raise ValueError(
-                f"样号 {unit.sample_id} 化验单缺少 h2o_pct，无法计算干重"
+                f"样号 {unit.sample_id} 化验单缺少 h2o_pct，无法计算"
             )
 
-        dry_weight = calc_dry_weight(wet_weight, assay.h2o_pct)
-
+        # ── 计价元素（type="element"）─────────────────────────────
         for elem in element_items:
-            if elem.unit_price.source != "fixed":
-                raise NotImplementedError(
-                    f"仅支持 source=fixed，元素 {elem.name} 使用了 {elem.unit_price.source}"
-                )
-            if elem.operations:
-                raise NotImplementedError(
-                    f"元素 {elem.name} 含 operations，Phase 1 暂不支持"
-                )
-            if elem.unit_price.value is None:
-                raise ValueError(
-                    f"元素 {elem.name} 的 unit_price.value 不能为 None（fixed 模式）"
-                )
-
-            unit_price = elem.unit_price.value
-            basis = elem.quantity.basis
-
-            pricing_basis = _BASIS_MAP[basis]
-
-            if basis == "wet_weight":
-                # 按湿重计价
-                from decimal import ROUND_HALF_UP
-                payment = (wet_weight * unit_price).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
-                items.append(SettlementItemRecord(
-                    contract_id=recipe.contract_id,
-                    sample_id=unit.sample_id,
-                    row_type=SettlementRowType.ELEMENT_PAYMENT,
-                    direction=settle_direction,
-                    element=elem.name,
-                    pricing_basis=pricing_basis,
-                    price_source=PriceSource.FIXED,
-                    price_formula=PriceFormula.FIXED_PRICE,
-                    wet_weight=wet_weight,
-                    h2o_pct=assay.h2o_pct,
-                    unit_price=unit_price,
-                    unit=elem.unit_price.unit,
-                    amount=payment,
-                ))
-
-            elif basis == "dry_weight":
-                # 按干重计价
-                from decimal import ROUND_HALF_UP
-                payment = (dry_weight * unit_price).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
-                items.append(SettlementItemRecord(
-                    contract_id=recipe.contract_id,
-                    sample_id=unit.sample_id,
-                    row_type=SettlementRowType.ELEMENT_PAYMENT,
-                    direction=settle_direction,
-                    element=elem.name,
-                    pricing_basis=pricing_basis,
-                    price_source=PriceSource.FIXED,
-                    price_formula=PriceFormula.FIXED_PRICE,
-                    wet_weight=wet_weight,
-                    h2o_pct=assay.h2o_pct,
-                    dry_weight=dry_weight,
-                    unit_price=unit_price,
-                    unit=elem.unit_price.unit,
-                    amount=payment,
-                ))
-
-            elif basis == "metal_quantity":
-                # 按金属量计价
-                grade_field = elem.quantity.grade_field
-                if grade_field is None:
-                    raise ValueError(
-                        f"元素 {elem.name} basis=metal_quantity 必须指定 grade_field"
-                    )
-                assay_grade: Decimal | None = getattr(assay, grade_field, None)
-                if assay_grade is None:
-                    raise ValueError(
-                        f"样号 {unit.sample_id} 化验单缺少字段 {grade_field}"
-                    )
-                grade_deduction = elem.quantity.grade_deduction
-                eff_grade = assay_grade - grade_deduction
-                metal_qty = calc_metal_quantity(dry_weight, assay_grade, grade_deduction)
-                payment = calc_element_payment(metal_qty, unit_price)
-
-                # 判断公式类型
-                formula = (
-                    PriceFormula.GRADE_DEDUCTION
-                    if grade_deduction != Decimal("0")
-                    else PriceFormula.FIXED_PRICE
-                )
-
-                items.append(SettlementItemRecord(
-                    contract_id=recipe.contract_id,
-                    sample_id=unit.sample_id,
-                    row_type=SettlementRowType.ELEMENT_PAYMENT,
-                    direction=settle_direction,
-                    element=elem.name,
-                    pricing_basis=pricing_basis,
-                    price_source=PriceSource.FIXED,
-                    price_formula=formula,
-                    wet_weight=wet_weight,
-                    h2o_pct=assay.h2o_pct,
-                    dry_weight=dry_weight,
-                    assay_grade=assay_grade,
-                    grade_deduction_val=grade_deduction,
-                    effective_grade=eff_grade,
-                    metal_quantity=metal_qty,
-                    unit_price=unit_price,
-                    unit=elem.unit_price.unit,
-                    amount=payment,
-                ))
-
-            else:
-                raise NotImplementedError(f"未知 basis: {basis}")
-
-    # ── 杂质扣款（type="deduction"）──────────────────────────
-    for elem in deduction_items:
-        grade_field = elem.quantity.grade_field
-        if grade_field is None:
-            raise ValueError(
-                f"杂质 {elem.name} 必须指定 grade_field 以读取化验品位"
+            # 执行数量管道
+            quantity, intermediates = _execute_quantity_pipeline(
+                elem.quantity_pipeline, unit
             )
 
-        for unit in batch_view.batch_units:
-            assay = unit.assay_report
-            grade: Decimal | None = getattr(assay, grade_field, None)
-            if grade is None:
-                continue  # 该样号无此杂质数据，跳过
+            # 执行单价管道
+            unit_price, grade_field = _execute_price_pipeline(
+                elem.price_pipeline, unit
+            )
 
-            tier = _find_tier(grade, elem.tiers)
-            if tier is None:
-                continue  # 品位未落入任何档位，不扣款
+            # 计算金额
+            amount = (quantity * unit_price).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
 
-            amount = calc_impurity_amount(unit.total_wet_weight, tier.rate)
+            # 获取中间值
+            dry_weight_val = intermediates.get("dry_weight")
+            metal_quantity_val = intermediates.get("metal_quantity")
+
+            # 金属量四舍五入到3位小数（结算标准）
+            if metal_quantity_val is not None:
+                metal_quantity_rounded = metal_quantity_val.quantize(
+                    Decimal("0.001"), rounding=ROUND_HALF_UP
+                )
+                amount = (metal_quantity_rounded * unit_price).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+            else:
+                amount = (quantity * unit_price).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+
+            # 获取品位值
+            grade_value = None
+            if grade_field:
+                grade_value = getattr(assay, grade_field, None)
+
+            # 构建 SettlementItemRecord
+            item = SettlementItemRecord(
+                contract_id=recipe.contract_id,
+                sample_id=unit.sample_id,
+                row_type=SettlementRowType.ELEMENT_PAYMENT,
+                direction=settle_direction,
+                element=elem.name,
+                pricing_basis=PricingBasis.METAL_QUANTITY,
+                price_source=PriceSource.FIXED,
+                price_formula=PriceFormula.FIXED_PRICE,
+                wet_weight=wet_weight,
+                h2o_pct=h2o_pct,
+                dry_weight=dry_weight_val,
+                metal_quantity=metal_quantity_val.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP) if metal_quantity_val else None,
+                assay_grade=grade_value,
+                unit_price=unit_price,
+                unit=elem.unit,
+                amount=amount,
+            )
+            items.append(item)
+
+        # ── 杂质扣款（type="deduction"）──────────────────────────
+        for elem in deduction_items:
+            # 执行数量管道（通常是干重）
+            quantity, intermediates = _execute_quantity_pipeline(
+                elem.quantity_pipeline, unit
+            )
+
+            # 执行单价管道（阶梯查表）
+            unit_price, grade_field = _execute_price_pipeline(
+                elem.price_pipeline, unit
+            )
+
+            # 如果单价为0（品位不在任何阶梯档位），跳过该扣款记录
+            if unit_price == Decimal("0"):
+                continue
+
+            # 计算金额（扣款，方向为 EXPENSE）
+            amount = (quantity * unit_price).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+
+            # 获取品位值
+            grade_value = None
+            if grade_field:
+                grade_value = getattr(assay, grade_field, None)
 
             # 档位说明
-            if tier.upper is None:
-                tier_note = f"{elem.name} ≥{tier.lower}% → {tier.rate}元/吨"
-            else:
-                tier_note = f"{elem.name} [{tier.lower}%, {tier.upper}%) → {tier.rate}元/吨"
+            tier_note = None
+            for step in elem.price_pipeline:
+                if step.op == "tier_lookup" and step.tiers:
+                    tier = _find_tier(grade_value or Decimal("0"), step.tiers)
+                    if tier:
+                        if tier.upper is None:
+                            tier_note = f"{elem.name} ≥{tier.lower}% → {tier.rate}元/吨"
+                        else:
+                            tier_note = f"{elem.name} [{tier.lower}%, {tier.upper}%) → {tier.rate}元/吨"
+                    break
 
             items.append(SettlementItemRecord(
                 contract_id=recipe.contract_id,
@@ -255,9 +390,9 @@ def evaluate_recipe(
                 element=elem.name,
                 pricing_basis=PricingBasis.WET_WEIGHT,
                 price_source=PriceSource.FIXED,
-                wet_weight=unit.total_wet_weight,
-                assay_grade=grade,
-                unit_price=tier.rate,
+                wet_weight=wet_weight,
+                assay_grade=grade_value,
+                unit_price=unit_price,
                 unit="元/吨",
                 amount=amount,
                 note=tier_note,
