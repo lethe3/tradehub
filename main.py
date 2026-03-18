@@ -38,7 +38,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TradeHub 服务入口")
     parser.add_argument("--web", action="store_true", help="启动 Web API 模式")
     parser.add_argument("--host", default="0.0.0.0", help="API 监听地址（默认 0.0.0.0）")
-    parser.add_argument("--port", type=int, default=8000, help="API 监听端口（默认 8000）")
+    parser.add_argument("--port", type=int, default=8001, help="API 监听端口（默认 8001）")
     args = parser.parse_args()
 
     if args.web:

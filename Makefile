@@ -4,8 +4,8 @@
 
 # ── 服务启动 ─────────────────────────────────────────────────
 
-api:  ## 启动 FastAPI 后端（端口 8000）
-	python main.py --web
+api:  ## 启动 FastAPI 后端（端口 8001）
+	python main.py --web --port 8001
 
 web:  ## 启动前端开发服务器（端口 5173）
 	cd web && npm run dev
