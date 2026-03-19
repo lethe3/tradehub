@@ -2,7 +2,7 @@
 M3A 模型验证测试
 
 1. Pydantic 模型构造和字段校验
-2. BatchUnit.total_wet_weight 属性
+2. Batch.total_wet_weight 属性
 3. BatchView 聚合属性
 4. PricingElement.effective_grade() 计算
 5. SettlementSummary.from_records() 结算汇总
@@ -20,7 +20,7 @@ import yaml
 
 from core.models import (
     AssayReportRecord,
-    BatchUnit,
+    Batch,
     BatchView,
     CashFlowDirection,
     CashFlowRecord,
@@ -147,7 +147,7 @@ class TestAssayReportRecord:
 
 
 # ═══════════════════════════════════════════════════════════════
-# Part 4: BatchUnit 和 BatchView
+# Part 4: Batch 和 BatchView
 # ═══════════════════════════════════════════════════════════════
 
 def make_contract() -> ContractRecord:
@@ -160,7 +160,7 @@ def make_contract() -> ContractRecord:
     )
 
 
-def make_batch_unit(sample_id: str, wet_weight: str, cu_pct: str, h2o_pct: str) -> BatchUnit:
+def make_batch(sample_id: str, wet_weight: str, cu_pct: str, h2o_pct: str) -> Batch:
     wt = WeighTicketRecord(
         ticket_id=f"wt-{sample_id}",
         ticket_number=f"WT-{sample_id}",
@@ -176,13 +176,19 @@ def make_batch_unit(sample_id: str, wet_weight: str, cu_pct: str, h2o_pct: str) 
         cu_pct=cu_pct,
         h2o_pct=h2o_pct,
     )
-    return BatchUnit(weigh_tickets=[wt], assay_report=ar, sample_id=sample_id)
+    return Batch(
+        batch_id=sample_id,
+        contract_id="mock-contract-001",
+        sample_id=sample_id,
+        weigh_tickets=[wt],
+        assay_reports=[ar],
+    )
 
 
-class TestBatchUnit:
+class TestBatch:
     def test_total_wet_weight_single_ticket(self):
-        unit = make_batch_unit("S2501", "50.225", "18.50", "10.00")
-        assert unit.total_wet_weight == Decimal("50.225")
+        batch = make_batch("S2501", "50.225", "18.50", "10.00")
+        assert batch.total_wet_weight == Decimal("50.225")
 
     def test_total_wet_weight_multiple_tickets(self):
         """同一样号对应多张磅单（N:1 场景）"""
@@ -197,16 +203,22 @@ class TestBatchUnit:
         ar = AssayReportRecord(
             report_id="ar-S9901", contract_id="c001", sample_id="S9901",
         )
-        unit = BatchUnit(weigh_tickets=[wt1, wt2], assay_report=ar, sample_id="S9901")
-        assert unit.total_wet_weight == Decimal("50.100")
+        batch = Batch(
+            batch_id="S9901",
+            contract_id="c001",
+            sample_id="S9901",
+            weigh_tickets=[wt1, wt2],
+            assay_reports=[ar],
+        )
+        assert batch.total_wet_weight == Decimal("50.100")
 
 
 class TestBatchView:
     def test_total_wet_weight_and_count(self):
         contract = make_contract()
-        unit1 = make_batch_unit("S2501", "50.225", "18.50", "10.00")
-        unit2 = make_batch_unit("S2502", "48.780", "19.20", "11.00")
-        view = BatchView(contract=contract, batch_units=[unit1, unit2])
+        batch1 = make_batch("S2501", "50.225", "18.50", "10.00")
+        batch2 = make_batch("S2502", "48.780", "19.20", "11.00")
+        view = BatchView(contract=contract, batches=[batch1, batch2])
         assert view.batch_count == 2
         assert view.total_wet_weight == Decimal("50.225") + Decimal("48.780")
 

@@ -234,7 +234,7 @@ class TestEdgeCases:
 
     def _make_batch_view(self, contract_id: str = "c-test", direction: str = "采购",
                          cu_pct: str = "18.50", h2o_pct: str | None = "10.00") -> tuple:
-        from core.models.batch import BatchUnit, BatchView, ContractRecord, WeighTicketRecord, AssayReportRecord
+        from core.models.batch import Batch, BatchView, ContractRecord, WeighTicketRecord, AssayReportRecord
         contract = ContractRecord(
             contract_id=contract_id,
             contract_number="HT-TEST",
@@ -252,8 +252,14 @@ class TestEdgeCases:
             sample_id="S001", cu_pct=Decimal(cu_pct),
             h2o_pct=Decimal(h2o_pct) if h2o_pct is not None else None,
         )
-        unit = BatchUnit(sample_id="S001", weigh_tickets=[ticket], assay_report=report)
-        return BatchView(contract=contract, batch_units=[unit]), direction
+        batch = Batch(
+            batch_id="S001",
+            contract_id=contract_id,
+            sample_id="S001",
+            weigh_tickets=[ticket],
+            assay_reports=[report],
+        )
+        return BatchView(contract=contract, batches=[batch]), direction
 
     def test_sales_direction_is_income(self):
         """销售合同元素货款方向为 INCOME。"""

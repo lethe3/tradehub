@@ -103,7 +103,7 @@ class TestMatchByIdBasic:
         sample_ids = {u.sample_id for u in matched}
         assert sample_ids == {"S001", "S002"}
 
-    def test_matched_batch_unit_fields(self):
+    def test_matched_batch_fields(self):
         tickets = [make_ticket("t1", "S001", "50.225")]
         reports = [make_report("r1", "S001", cu_pct="18.50", h2o_pct="10.00")]
         matched, _ = match_by_sample_id(tickets, reports)
@@ -285,7 +285,7 @@ class TestBuildBatchViewScenario01:
         self.tickets = [WeighTicketRecord(**t) for t in raw_tickets]
         self.reports = [AssayReportRecord(**r) for r in raw_reports]
 
-    def test_batch_view_has_two_units(self):
+    def test_batch_view_has_two_batches(self):
         view, unmatched = build_batch_view(self.contract, self.tickets, self.reports)
         assert isinstance(view, BatchView)
         assert view.batch_count == 2
@@ -302,7 +302,7 @@ class TestBuildBatchViewScenario01:
 
     def test_s2501_unit(self):
         view, _ = build_batch_view(self.contract, self.tickets, self.reports)
-        units = {u.sample_id: u for u in view.batch_units}
+        units = {u.sample_id: u for u in view.batches}
         u = units["S2501"]
         assert u.total_wet_weight == Decimal("50.225")
         assert u.assay_report.cu_pct == Decimal("18.50")
@@ -310,7 +310,7 @@ class TestBuildBatchViewScenario01:
 
     def test_s2502_unit(self):
         view, _ = build_batch_view(self.contract, self.tickets, self.reports)
-        units = {u.sample_id: u for u in view.batch_units}
+        units = {u.sample_id: u for u in view.batches}
         u = units["S2502"]
         assert u.total_wet_weight == Decimal("48.780")
         assert u.assay_report.cu_pct == Decimal("19.20")
@@ -318,18 +318,18 @@ class TestBuildBatchViewScenario01:
 
     def test_each_unit_has_exactly_one_ticket(self):
         view, _ = build_batch_view(self.contract, self.tickets, self.reports)
-        for unit in view.batch_units:
+        for unit in view.batches:
             assert len(unit.weigh_tickets) == 1, f"{unit.sample_id} 应该只有 1 张磅单"
 
-    def test_batch_units_sorted_by_sample_id(self):
+    def test_batches_sorted_by_sample_id(self):
         view, _ = build_batch_view(self.contract, self.tickets, self.reports)
-        ids = [u.sample_id for u in view.batch_units]
+        ids = [u.sample_id for u in view.batches]
         assert ids == sorted(ids)
 
     def test_expected_yaml_amounts_consistent_with_view(self):
         """验证 YAML 手算数字与 BatchView 中的重量字段一致"""
         view, _ = build_batch_view(self.contract, self.tickets, self.reports)
-        units = {u.sample_id: u for u in view.batch_units}
+        units = {u.sample_id: u for u in view.batches}
         for bc in self.expected["batch_calculations"]:
             sample_id = bc["sample_id"]
             assert sample_id in units, f"缺少批次 {sample_id}"

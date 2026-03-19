@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from core.models.batch import BatchUnit, BatchView
+from core.models.batch import Batch, BatchView
 from core.models.settlement_item import (
     PricingBasis,
     PriceFormula,
@@ -36,15 +36,15 @@ from .schema import PriceStep, QuantityStep, Recipe, TierEntry
 
 def _execute_quantity_pipeline(
     pipeline: list[QuantityStep],
-    batch_unit: BatchUnit,
+    batch: Batch,
 ) -> tuple[Decimal, dict]:
     """执行数量管道，返回最终数量和中间值
 
     Returns:
         (最终数量, 中间值字典) - 中间值包含 dry_weight, metal_quantity 等
     """
-    wet_weight = batch_unit.total_wet_weight
-    assay = batch_unit.assay_report
+    wet_weight = batch.total_wet_weight
+    assay = batch.assay_report
     h2o = assay.h2o_pct or Decimal("0")
 
     # 中间值记录
@@ -176,14 +176,14 @@ def _find_tier(grade: Decimal, tiers: list[TierEntry]) -> TierEntry | None:
 
 def _execute_price_pipeline(
     pipeline: list[PriceStep],
-    batch_unit: BatchUnit,
+    batch: Batch,
 ) -> tuple[Decimal, str | None]:
     """执行单价管道，返回最终单价和字段名
 
     Returns:
         (最终单价, 品位字段名或None)
     """
-    assay = batch_unit.assay_report
+    assay = batch.assay_report
 
     current: Decimal | None = None
     grade_field: str | None = None
@@ -248,7 +248,7 @@ def evaluate_recipe(
     direction: str,
 ) -> list[SettlementItemRecord]:
     """
-    用 Recipe（管道公式版本）对 BatchView 中的每个批次单元计算结算明细。
+    用 Recipe（管道公式版本）对 BatchView 中的每个 Batch 计算结算明细。
 
     Args:
         recipe:      合同计价配方（管道版本）
@@ -257,7 +257,7 @@ def evaluate_recipe(
 
     Returns:
         SettlementItemRecord 列表：
-          - 先按 batch_unit 顺序输出各元素货款行
+          - 先按 batch 顺序输出各元素货款行
           - 再输出各杂质扣款行（按 recipe.elements 顺序）
 
     异常：
@@ -273,27 +273,27 @@ def evaluate_recipe(
     element_items = [e for e in recipe.elements if e.type == "element"]
     deduction_items = [e for e in recipe.elements if e.type == "deduction"]
 
-    for unit in batch_view.batch_units:
-        assay = unit.assay_report
-        wet_weight = unit.total_wet_weight
+    for batch in batch_view.batches:
+        assay = batch.assay_report
+        wet_weight = batch.total_wet_weight
         h2o_pct = assay.h2o_pct
 
         # 验证必要字段
         if h2o_pct is None:
             raise ValueError(
-                f"样号 {unit.sample_id} 化验单缺少 h2o_pct，无法计算"
+                f"批次 {batch.batch_id} 化验单缺少 h2o_pct，无法计算"
             )
 
         # ── 计价元素（type="element"）─────────────────────────────
         for elem in element_items:
             # 执行数量管道
             quantity, intermediates = _execute_quantity_pipeline(
-                elem.quantity_pipeline, unit
+                elem.quantity_pipeline, batch
             )
 
             # 执行单价管道
             unit_price, grade_field = _execute_price_pipeline(
-                elem.price_pipeline, unit
+                elem.price_pipeline, batch
             )
 
             # 计算金额
@@ -326,7 +326,7 @@ def evaluate_recipe(
             # 构建 SettlementItemRecord
             item = SettlementItemRecord(
                 contract_id=recipe.contract_id,
-                sample_id=unit.sample_id,
+                sample_id=batch.sample_id,
                 row_type=SettlementRowType.ELEMENT_PAYMENT,
                 direction=settle_direction,
                 element=elem.name,
@@ -348,12 +348,12 @@ def evaluate_recipe(
         for elem in deduction_items:
             # 执行数量管道（通常是干重）
             quantity, intermediates = _execute_quantity_pipeline(
-                elem.quantity_pipeline, unit
+                elem.quantity_pipeline, batch
             )
 
             # 执行单价管道（阶梯查表）
             unit_price, grade_field = _execute_price_pipeline(
-                elem.price_pipeline, unit
+                elem.price_pipeline, batch
             )
 
             # 如果单价为0（品位不在任何阶梯档位），跳过该扣款记录
@@ -384,7 +384,7 @@ def evaluate_recipe(
 
             items.append(SettlementItemRecord(
                 contract_id=recipe.contract_id,
-                sample_id=unit.sample_id,
+                sample_id=batch.sample_id,
                 row_type=SettlementRowType.IMPURITY_DEDUCTION,
                 direction=SettlementDirection.EXPENSE,
                 element=elem.name,

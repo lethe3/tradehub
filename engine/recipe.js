@@ -61,11 +61,11 @@ function findTier(grade, tiers) {
 // ── 主函数 ───────────────────────────────────────────────────
 
 /**
- * 用 Recipe 对 batchView 中的每个批次单元计算结算明细。
+ * 用 Recipe 对 batchView 中的每个 Batch 计算结算明细。
  *
  * @param {Object} recipe - Recipe 对象（与 engine/schema.py 的 Recipe 结构一致）
- * @param {Object} batchView - 批次视图 { contract, batchUnits }
- *   batchUnits: Array of { sampleId, totalWetWeight, assayReport }
+ * @param {Object} batchView - 批次视图 { contract, batches }
+ *   batches: Array of { sampleId, totalWetWeight, assayReport }
  *   assayReport: { cuPct, h2oPct, asPct, ... }（驼峰命名）
  * @param {string} direction - "采购" | "销售"
  * @returns {SettlementItem[]}
@@ -78,7 +78,7 @@ export function evaluateRecipe(recipe, batchView, direction) {
   const deductionItems = recipe.elements.filter(e => e.type === 'deduction');
 
   // ── 元素货款 ────────────────────────────────────────────
-  for (const unit of batchView.batchUnits) {
+  for (const unit of batchView.batches) {
     const assay = unit.assayReport;
     const wetWeight = Number(unit.totalWetWeight);
     const h2oPct = Number(assay.h2oPct);
@@ -169,7 +169,7 @@ export function evaluateRecipe(recipe, batchView, direction) {
       throw new Error(`杂质 ${elem.name} 必须指定 gradeField`);
     }
 
-    for (const unit of batchView.batchUnits) {
+    for (const unit of batchView.batches) {
       const assay = unit.assayReport;
       const gradeRaw = assay[gradeField];
       if (gradeRaw === null || gradeRaw === undefined) continue;
@@ -249,16 +249,16 @@ export function summarizeItems(items) {
 /**
  * 将 API 返回的 batchView（snake_case）转换为 JS 引擎使用的 camelCase 格式。
  *
- * API batchUnit: { sample_id, total_wet_weight, assay_report: { cu_pct, h2o_pct, ... } }
+ * API batch: { sample_id, total_wet_weight, assay_report: { cu_pct, h2o_pct, ... } }
  * JS engine: { sampleId, totalWetWeight, assayReport: { cuPct, h2oPct, ... } }
  */
 export function adaptBatchView(apiBatchView) {
   return {
     contract: apiBatchView.contract,
-    batchUnits: apiBatchView.batch_units.map(unit => ({
-      sampleId: unit.sample_id,
-      totalWetWeight: unit.total_wet_weight,
-      assayReport: adaptAssayReport(unit.assay_report),
+    batches: apiBatchView.batches.map(batch => ({
+      sampleId: batch.sample_id,
+      totalWetWeight: batch.total_wet_weight,
+      assayReport: adaptAssayReport(batch.assay_report),
     })),
   };
 }
