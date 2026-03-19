@@ -1,112 +1,210 @@
 """
 批次数据模型
 
-从 Bitable 读取的原始记录（ContractRecord / WeighTicketRecord / AssayReportRecord）
-和 M3C 串联后的视图模型（BatchUnit / BatchView）。
-
-纯 Pydantic，无外部依赖。
+Phase 0 起，Batch 成为真实业务上的“一次流转”父节点：
+- 同一 Batch 下可以有多张不同类型的磅单
+- 同一 Batch 下可以有多张不同类型的化验单
 """
 from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from enum import StrEnum
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, AliasChoices, field_validator, model_validator
+
+
+class WeighTicketType(StrEnum):
+    SHIPMENT = "发货"
+    RECEIPT = "收货"
+    TRANSFER = "中转"
+
+
+class AssayReportType(StrEnum):
+    ESTIMATE = "预估"
+    SURVEY = "摸底"
+    SETTLEMENT = "结算"
+    NEGOTIATION = "协商"
+    ARBITRATION = "仲裁"
+
+
+GRADE_FIELDS = (
+    "cu_pct",
+    "au_gt",
+    "ag_gt",
+    "pb_pct",
+    "zn_pct",
+    "s_pct",
+    "as_pct",
+    "h2o_pct",
+)
 
 
 class ContractRecord(BaseModel):
     """合同表原始记录"""
-    contract_id: str                          # Bitable record ID
-    contract_number: str                      # 合同编号（原件编号）
-    direction: str                            # 采购 / 销售
-    commodity: Optional[str] = None          # 货品名称（已迁移至结算明细，保留兼容）
-    counterparty: str                         # 交易对手
-    signing_date: Optional[date] = None       # 签订日期
-    # 阶段二扩展字段
-    tax_included: Optional[bool] = None       # 是否含税
-    freight_bearer: Optional[str] = None      # 运费承担方（我方/对方）
-    assay_fee_bearer: Optional[str] = None    # 化验费承担方
-    pricing_elements: list[str] = []          # 计价元素列表（已迁移至结算明细，保留兼容）
-    settlement_ticket_rule: Optional[str] = None   # 结算磅单约定
-    settlement_assay_rule: Optional[str] = None    # 结算化验单约定
+
+    contract_id: str
+    contract_number: str
+    direction: str
+    commodity: Optional[str] = None
+    counterparty: str
+    signing_date: Optional[date] = None
+    tax_included: Optional[bool] = None
+    freight_bearer: Optional[str] = None
+    assay_fee_bearer: Optional[str] = None
+    pricing_elements: list[str] = Field(default_factory=list)
+    settlement_ticket_rule: Optional[str] = None
+    settlement_assay_rule: Optional[str] = None
 
 
 class WeighTicketRecord(BaseModel):
-    """磅单表原始记录（阶段二扩展后的完整字段）"""
-    ticket_id: str                           # Bitable record ID
-    ticket_number: str                       # 磅单编号
-    contract_id: str                         # 关联合同 record ID
-    commodity: str                           # 货物品名
-    wet_weight: Decimal                      # 净重(吨) = 磅单净重，即湿重
-    weighing_date: Optional[date] = None     # 过磅日期
-    # 阶段二扩展字段
-    sample_id: Optional[str] = None          # 样号（与化验单关联的核心字段）
-    vehicle_number: Optional[str] = None     # 车号
-    gross_weight: Optional[Decimal] = None   # 毛重(吨)
-    tare_weight: Optional[Decimal] = None    # 皮重(吨)
-    deduction_weight: Optional[Decimal] = None  # 扣重(吨)
-    is_settlement: bool = True               # 是否结算磅单
-    price_group: Optional[int] = None        # 基准价组号（均价模式使用）
+    """磅单表原始记录。"""
 
-    @field_validator("wet_weight", mode="before")
+    ticket_id: str
+    ticket_number: str
+    contract_id: str
+    commodity: str
+    wet_weight: Decimal
+    type: WeighTicketType = WeighTicketType.RECEIPT
+    batch_id: Optional[str] = None
+    weighing_date: Optional[date] = None
+    sample_id: Optional[str] = None
+    vehicle_number: Optional[str] = None
+    gross_weight: Optional[Decimal] = None
+    tare_weight: Optional[Decimal] = None
+    deduction_weight: Optional[Decimal] = None
+    is_settlement: bool = True
+    price_group: Optional[int] = None
+
+    @field_validator("wet_weight", "gross_weight", "tare_weight", "deduction_weight", mode="before")
     @classmethod
-    def parse_weight(cls, v: object) -> Decimal:
+    def parse_weight(cls, v: object) -> Optional[Decimal]:
+        if v is None:
+            return None
         return Decimal(str(v))
+
+    @model_validator(mode="after")
+    def infer_batch_id(self) -> "WeighTicketRecord":
+        if not self.batch_id and self.sample_id:
+            self.batch_id = self.sample_id.strip() or None
+        return self
 
 
 class AssayReportRecord(BaseModel):
-    """化验单表原始记录"""
-    report_id: str                           # Bitable record ID
-    contract_id: str                         # 关联合同 record ID
-    sample_id: str                           # 样号（核心串联字段）
-    assay_type: str = "结算化验"             # 快速摸底 / 结算化验
-    is_settlement: bool = True               # 是否结算化验单
-    assay_date: Optional[date] = None        # 化验日期
-    assay_lab: Optional[str] = None          # 化验机构
-    # 各元素品位（None = 未检测）
-    cu_pct: Optional[Decimal] = None         # Cu%
-    au_gt: Optional[Decimal] = None          # Au(g/t)
-    ag_gt: Optional[Decimal] = None          # Ag(g/t)
-    pb_pct: Optional[Decimal] = None         # Pb%
-    zn_pct: Optional[Decimal] = None         # Zn%
-    s_pct: Optional[Decimal] = None          # S%
-    as_pct: Optional[Decimal] = None         # As%
-    h2o_pct: Optional[Decimal] = None        # H2O%（水分，计算干重必需）
+    """化验单表原始记录。"""
 
-    @field_validator("cu_pct", "au_gt", "ag_gt", "pb_pct", "zn_pct",
-                     "s_pct", "as_pct", "h2o_pct", mode="before")
+    report_id: str
+    contract_id: str
+    sample_id: str
+    type: AssayReportType = Field(
+        default=AssayReportType.SETTLEMENT,
+        validation_alias=AliasChoices("type", "assay_type"),
+    )
+    batch_id: Optional[str] = None
+    is_settlement: bool = True
+    assay_date: Optional[date] = None
+    assay_lab: Optional[str] = None
+    cu_pct: Optional[Decimal] = None
+    au_gt: Optional[Decimal] = None
+    ag_gt: Optional[Decimal] = None
+    pb_pct: Optional[Decimal] = None
+    zn_pct: Optional[Decimal] = None
+    s_pct: Optional[Decimal] = None
+    as_pct: Optional[Decimal] = None
+    h2o_pct: Optional[Decimal] = None
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, v: object) -> object:
+        mapping = {
+            "结算化验": AssayReportType.SETTLEMENT,
+            "快速摸底": AssayReportType.SURVEY,
+            "摸底化验": AssayReportType.SURVEY,
+            "预估化验": AssayReportType.ESTIMATE,
+        }
+        return mapping.get(v, v)
+
+    @field_validator(*GRADE_FIELDS, mode="before")
     @classmethod
     def parse_grade(cls, v: object) -> Optional[Decimal]:
         if v is None:
             return None
         return Decimal(str(v))
 
+    @model_validator(mode="after")
+    def infer_compat_fields(self) -> "AssayReportRecord":
+        if not self.batch_id and self.sample_id:
+            self.batch_id = self.sample_id.strip() or None
+        return self
 
-class BatchUnit(BaseModel):
-    """单个样号的批次单元（M3C 串联输出）
+    @property
+    def assay_type(self) -> str:
+        """兼容旧字段名。"""
+        return self.type.value
 
-    一张化验单 + 该样号对应的全部磅单。
-    湿重合计 = 所有磅单 wet_weight 之和。
-    """
-    sample_id: str
-    weigh_tickets: list[WeighTicketRecord]
-    assay_report: AssayReportRecord
+
+class Batch(BaseModel):
+    """一批货物的一次流转。"""
+
+    batch_id: str
+    contract_id: str
+    sample_id: Optional[str] = None
+    weigh_tickets: list[WeighTicketRecord] = Field(default_factory=list)
+    assay_reports: list[AssayReportRecord] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def infer_sample_id(self) -> "Batch":
+        if self.sample_id:
+            return self
+        for ticket in self.weigh_tickets:
+            if ticket.sample_id:
+                self.sample_id = ticket.sample_id.strip()
+                return self
+        for report in self.assay_reports:
+            if report.sample_id:
+                self.sample_id = report.sample_id.strip()
+                return self
+        return self
+
+    @property
+    def settlement_weigh_tickets(self) -> list[WeighTicketRecord]:
+        settlement = [t for t in self.weigh_tickets if t.is_settlement]
+        return settlement or list(self.weigh_tickets)
+
+    @property
+    def settlement_assay_reports(self) -> list[AssayReportRecord]:
+        settlement = [
+            r for r in self.assay_reports
+            if r.is_settlement or r.type == AssayReportType.SETTLEMENT
+        ]
+        return settlement or list(self.assay_reports)
+
+    @property
+    def assay_report(self) -> AssayReportRecord:
+        reports = self.settlement_assay_reports
+        if not reports:
+            raise ValueError(f"Batch {self.batch_id} 缺少化验单")
+        return sorted(
+            reports,
+            key=lambda r: (r.assay_date or date.min, r.report_id),
+        )[-1]
 
     @property
     def total_wet_weight(self) -> Decimal:
-        return sum((t.wet_weight for t in self.weigh_tickets), Decimal("0"))
+        return sum((t.wet_weight for t in self.settlement_weigh_tickets), Decimal("0"))
 
 
 class BatchView(BaseModel):
-    """某合同的完整批次视图（M3C 串联输出，M3D 计算输入）"""
+    """某合同的完整批次视图。"""
+
     contract: ContractRecord
-    batch_units: list[BatchUnit]
+    batches: list[Batch] = Field(default_factory=list)
 
     @property
     def total_wet_weight(self) -> Decimal:
-        return sum((u.total_wet_weight for u in self.batch_units), Decimal("0"))
+        return sum((batch.total_wet_weight for batch in self.batches), Decimal("0"))
 
     @property
     def batch_count(self) -> int:
-        return len(self.batch_units)
+        return len(self.batches)

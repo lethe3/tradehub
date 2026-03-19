@@ -61,7 +61,9 @@ class WeighTicketCreate(BaseModel):
     ticket_number: str
     commodity: str
     wet_weight: Decimal
+    type: str = "收货"
     sample_id: Optional[str] = None
+    batch_id: Optional[str] = None
     weighing_date: Optional[date] = None
     vehicle_number: Optional[str] = None
     gross_weight: Optional[Decimal] = None
@@ -78,7 +80,9 @@ class WeighTicketUpdate(BaseModel):
     ticket_number: Optional[str] = None
     commodity: Optional[str] = None
     wet_weight: Optional[Decimal] = None
+    type: Optional[str] = None
     sample_id: Optional[str] = None
+    batch_id: Optional[str] = None
     weighing_date: Optional[date] = None
     vehicle_number: Optional[str] = None
     gross_weight: Optional[Decimal] = None
@@ -95,7 +99,9 @@ class WeighTicketUpdate(BaseModel):
 class AssayReportCreate(BaseModel):
     """新建化验单请求体"""
     sample_id: str
-    assay_type: str = "结算化验"
+    type: str = "结算"
+    assay_type: Optional[str] = None
+    batch_id: Optional[str] = None
     is_settlement: bool = True
     assay_date: Optional[date] = None
     assay_lab: Optional[str] = None
@@ -114,7 +120,9 @@ class AssayReportCreate(BaseModel):
 class AssayReportUpdate(BaseModel):
     """更新化验单请求体"""
     sample_id: Optional[str] = None
+    type: Optional[str] = None
     assay_type: Optional[str] = None
+    batch_id: Optional[str] = None
     is_settlement: Optional[bool] = None
     assay_date: Optional[date] = None
     assay_lab: Optional[str] = None

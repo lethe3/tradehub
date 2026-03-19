@@ -2,10 +2,12 @@
 
 from .batch import (
     AssayReportRecord,
-    BatchUnit,
+    AssayReportType,
+    Batch,
     BatchView,
     ContractRecord,
     WeighTicketRecord,
+    WeighTicketType,
 )
 from .cash_flow import (
     CashFlowDirection,
@@ -27,7 +29,9 @@ __all__ = [
     "ContractRecord",
     "WeighTicketRecord",
     "AssayReportRecord",
-    "BatchUnit",
+    "WeighTicketType",
+    "AssayReportType",
+    "Batch",
     "BatchView",
     # cash_flow
     "CashFlowType",
